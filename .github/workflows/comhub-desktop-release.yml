@@ -97,16 +97,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - id: macos-arm64
-            label: macOS Apple Silicon
-            os: macos-15
-            command: package:mac
-            expected: dmg,zip
-          - id: macos-x64
-            label: macOS Intel
-            os: macos-15-intel
-            command: package:mac
-            expected: dmg,zip
+          # STAGGERED-BUILD: macos entries deferred to batch 2 (SOP)
           - id: windows-x64
             label: Windows x64
             os: windows-latest
