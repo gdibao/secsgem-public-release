@@ -1,18 +1,18 @@
 {
-  "name": "chituo-ai-assistant",
-  "version": "2.2.17-chituo.33",
+  "name": "lobehub-desktop",
+  "version": "2.2.17-chituo.35",
   "packageManager": "pnpm@12.4.1+sha512.2e81e399d73fe8390dab25e06aa788ab7a5908248d2f5a370f82b481147a6a7a367bf8048f9a6fdb6460f21a66f0542dedb8b94ca2c8723596741920b1656d4c",
   "private": true,
-  "description": "驰拓半导体私有化 AI 助手桌面客户端",
+  "description": "\u9a70\u62d3\u534a\u5bfc\u4f53\u79c1\u6709\u5316 AI \u52a9\u624b\u684c\u9762\u5ba2\u6237\u7aef",
   "homepage": "https://secsgem.com.cn",
   "repository": {
     "type": "git",
     "url": "https://github.com/gdibao/secsgem.com.cn.git"
   },
-  "author": "无锡市驰拓信息科技有限公司",
+  "author": "\u65e0\u9521\u5e02\u9a70\u62d3\u4fe1\u606f\u79d1\u6280\u6709\u9650\u516c\u53f8",
   "main": "./dist/main/index.js",
   "scripts": {
-    "build:cli": "cd ../cli && cross-env MINIFY=1 ./node_modules/.bin/tsx scripts/ensureWorkspaceLinks.ts && ./node_modules/.bin/tsdown",
+    "build:cli": "cd ../cli && cross-env MINIFY=1 tsx scripts/ensureWorkspaceLinks.ts && tsdown",
     "build:main": "cross-env NODE_OPTIONS=--max-old-space-size=16384 npm run build:main:raw",
     "build:main:raw": "vite build --config vite.main.config.ts && vite build --config vite.preload.config.ts && vite build --config vite.renderer.config.ts",
     "build:renderer": "cross-env NODE_OPTIONS=--max-old-space-size=8192 vite build --config vite.renderer.config.ts",
