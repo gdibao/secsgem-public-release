@@ -1,0 +1,434 @@
+import { execSync } from 'node:child_process';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import dotenv from 'dotenv';
+
+import { resolveAuvBinaryForTarget } from './auv-binary.mjs';
+import { applyDesktopBuildProfile, loadDesktopBuildProfile } from './desktop-build-profile.mjs';
+import {
+  copyExternalRuntimeModulesToSource,
+  getExternalRuntimeModulesFilesConfig,
+} from './external-runtime-deps.config.mjs';
+import {
+  buildFirstPartyNativeAddons,
+  copyNativeModulesToSource,
+  getAsarUnpackPatterns,
+  getNativeModulesFilesConfig,
+} from './native-deps.config.mjs';
+import { verifyFontListSignature } from './scripts/verifyFontListSigning.mjs';
+
+dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const packageJSON = JSON.parse(await fs.readFile(path.join(__dirname, 'package.json'), 'utf8'));
+
+const channel = process.env.UPDATE_CHANNEL;
+const arch = os.arch();
+const hasAppleCertificate = Boolean(process.env.CSC_LINK);
+
+const macAppId = 'com.lobehub.lobehub-desktop';
+// Communication notifications need the restricted
+// `com.apple.developer.usernotifications.communication` entitlement, and
+// macOS refuses to launch an app carrying it without a provisioning profile
+// that authorizes it — so both must be applied together, and only when a
+// profile is provided.
+const macProvisioningProfile = process.env.MAC_PROVISIONING_PROFILE;
+const macTeamId = process.env.APPLE_TEAM_ID;
+const macCommunicationEntitlements =
+  macProvisioningProfile && macTeamId
+    ? path.join(__dirname, 'build', 'entitlements.mac.comm.generated.plist')
+    : undefined;
+
+if (macProvisioningProfile && !macTeamId) {
+  console.warn(
+    '⚠️ MAC_PROVISIONING_PROFILE is set but APPLE_TEAM_ID is missing — building without communication notification entitlements',
+  );
+}
+
+if (macCommunicationEntitlements) {
+  const baseEntitlements = await fs.readFile(
+    path.join(__dirname, 'build', 'entitlements.mac.plist'),
+    'utf8',
+  );
+  const communicationKeys = [
+    '    <key>com.apple.application-identifier</key>',
+    `    <string>${macTeamId}.${macAppId}</string>`,
+    '    <key>com.apple.developer.team-identifier</key>',
+    `    <string>${macTeamId}</string>`,
+    '    <key>com.apple.developer.usernotifications.communication</key>',
+    '    <true/>',
+    '  </dict>',
+  ].join('\n');
+  await fs.writeFile(
+    macCommunicationEntitlements,
+    baseEntitlements.replace('</dict>', communicationKeys),
+  );
+  console.info('🔔 Communication notification entitlements + provisioning profile enabled');
+}
+
+// 自定义更新服务器 URL (用于 stable 频道)
+const updateServerUrl = process.env.UPDATE_SERVER_URL;
+
+console.info(`🚄 Build Version ${packageJSON.version}, Channel: ${channel}`);
+console.info(`🏗️ Building for architecture: ${arch}`);
+
+// Channel identity derived solely from UPDATE_CHANNEL env var.
+// Supported channels: stable, nightly, canary
+const isStable = !channel || channel === 'stable';
+const isNightly = channel === 'nightly';
+const isCanary = channel === 'canary';
+
+// Strip trailing channel path from URL for re-appending the correct channel
+// Handles both base URL (https://cdn.example.com) and legacy URL with channel (https://cdn.example.com/stable)
+const stripChannelSuffix = (url) => url.replace(/\/(stable|nightly|canary|beta)\/?$/, '');
+
+// 根据 channel 配置 publish provider
+// - 所有渠道 + UPDATE_SERVER_URL: 使用 generic (S3)
+// - 无 UPDATE_SERVER_URL: 不配置发布源
+const getPublishConfig = () => {
+  const channelPath = isStable ? 'stable' : isNightly ? 'nightly' : channel || 'stable';
+
+  if (updateServerUrl) {
+    const baseUrl = stripChannelSuffix(updateServerUrl);
+    const fullUrl = `${baseUrl}/${channelPath}`;
+    console.info(`📦 ${channelPath} channel: Using generic provider (${fullUrl})`);
+    return [
+      {
+        provider: 'generic',
+        url: fullUrl,
+      },
+    ];
+  }
+
+  // No fallback provider: desktop builds must use the configured ComHub update server only.
+  console.info(`${channelPath} channel: No UPDATE_SERVER_URL, publish provider disabled`);
+  return null;
+};
+
+// https://www.electron.build/code-signing-mac#how-to-disable-code-signing-during-the-build-process-on-macos
+if (!hasAppleCertificate) {
+  // Disable auto discovery to keep electron-builder from searching unavailable signing identities
+  process.env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
+  console.info('⚠️ Apple certificate link not found, macOS artifacts will be unsigned.');
+}
+
+// 根据版本类型确定协议 scheme
+const getProtocolScheme = () => {
+  if (isCanary) return 'lobehub-canary';
+  if (isNightly) return 'lobehub-nightly';
+  return 'lobehub';
+};
+
+const protocolScheme = getProtocolScheme();
+
+// Determine icon file based on version type
+const getIconFileName = () => {
+  if (isStable || isCanary) return 'Icon';
+  // nightly uses pre-release icon
+  return 'Icon-nightly';
+};
+
+/**
+ * @type {import('electron-builder').Configuration}
+ * @see https://www.electron.build/configuration
+ */
+const defaultConfig = {
+  /**
+   * BeforePack hook to resolve pnpm symlinks for native modules.
+   * This ensures native modules are properly included in the asar archive.
+   */
+  beforePack: async (context) => {
+    buildFirstPartyNativeAddons();
+
+    await copyNativeModulesToSource();
+    await copyExternalRuntimeModulesToSource();
+
+    // Keep the AUV daemon version locked to @auv-js/sdk. The CLI package
+    // resolves the platform-specific executable without running postinstall,
+    // then we stage that real file outside app.asar for child_process.spawn().
+    const {
+      binaryPath: auvSource,
+      executable: auvExecutable,
+      packageName: auvPackageName,
+    } = await resolveAuvBinaryForTarget(context.electronPlatformName, context.arch);
+    const auvBinDirectory = path.resolve(__dirname, 'resources/bin');
+    await Promise.all([
+      fs.rm(path.join(auvBinDirectory, 'auv'), { force: true }),
+      fs.rm(path.join(auvBinDirectory, 'auv.exe'), { force: true }),
+      fs.rm(path.join(auvBinDirectory, 'bin'), { force: true, recursive: true }),
+    ]);
+    const auvDestination = path.join(auvBinDirectory, auvExecutable);
+    await fs.mkdir(auvBinDirectory, { recursive: true });
+    await fs.copyFile(auvSource, auvDestination);
+    if (context.electronPlatformName !== 'win32') await fs.chmod(auvDestination, 0o755);
+    console.info(`Packaged target AUV runtime from ${auvPackageName}`);
+
+    // agent-browser is no longer bundled in the installer — BinaryManager
+    // lazily downloads it on first use into the per-user cache dir. See
+    // apps/desktop/src/main/modules/binaries/agentBrowserBinaries.ts.
+
+    // Build and copy CLI bundle for embedding
+    console.info('📦 Building CLI for embedding...');
+    execSync('npm run build:cli', { stdio: 'inherit', cwd: __dirname });
+    const cliSrc = path.resolve(__dirname, '../cli/dist/index.js');
+    const cliDest = path.resolve(__dirname, 'resources/bin/lobe-cli.js');
+    await fs.mkdir(path.dirname(cliDest), { recursive: true });
+    await fs.copyFile(cliSrc, cliDest);
+
+    // Write a minimal package.json next to the CLI bundle so that
+    // createRequire('../package.json') resolves correctly in the packaged app.
+    // The CLI script lives at Resources/bin/lobe-cli.js, so '../package.json'
+    // resolves to Resources/package.json.
+    const cliPkg = JSON.parse(
+      await fs.readFile(path.resolve(__dirname, '../cli/package.json'), 'utf8'),
+    );
+    await fs.writeFile(
+      path.resolve(__dirname, 'resources/cli-package.json'),
+      JSON.stringify({ name: cliPkg.name, type: 'module', version: cliPkg.version }),
+    );
+    console.info('✅ CLI bundle copied to resources/bin/lobe-cli.js');
+  },
+  /**
+   * AfterPack hook for copying Liquid Glass Assets.car on macOS 26+.
+   *
+   * @see https://github.com/electron-userland/electron-builder/issues/9254
+   * @see https://github.com/MultiboxLabs/flow-browser/pull/159
+   */
+  afterPack: async (context) => {
+    if (context.electronPlatformName === 'win32' && process.arch === 'x64') {
+      const source = path.join(__dirname, 'node_modules/@lydell/node-pty-win32-x64');
+      const destination = path.join(
+        context.appOutDir,
+        'resources/app.asar.unpacked/node_modules/@lydell/node-pty-win32-x64',
+      );
+      await fs.rm(destination, { force: true, recursive: true });
+      await fs.mkdir(path.dirname(destination), { recursive: true });
+      // The pnpm package path is a directory link. Keep real files in appOutDir;
+      // NSIS does not archive the external target of that link.
+      await fs.cp(source, destination, { dereference: true, recursive: true });
+      const binding = path.join(destination, 'prebuilds/win32-x64/conpty.node');
+      const [destinationStat, bindingStat] = await Promise.all([
+        fs.lstat(destination),
+        fs.stat(binding),
+      ]);
+      if (destinationStat.isSymbolicLink() || !bindingStat.isFile() || bindingStat.size === 0) {
+        throw new Error('WINDOWS_NODE_PTY_RUNTIME_NOT_MATERIALIZED');
+      }
+      console.info('Packaged Windows x64 node-pty runtime into the final application directory.');
+      return;
+    }
+
+    const isMac = ['darwin', 'mas'].includes(context.electronPlatformName);
+
+    if (!isMac) {
+      return;
+    }
+
+    // A custom profile supplies its own ICNS. Copying the repository's
+    // upstream Assets.car would override that icon on recent macOS releases.
+    if (process.env.DESKTOP_BUILD_PROFILE_PATH) {
+      console.info('Skipping repository Assets.car for custom desktop branding.');
+      return;
+    }
+
+    const resourcesPath = path.join(
+      context.appOutDir,
+      `${context.packager.appInfo.productFilename}.app`,
+      'Contents',
+      'Resources',
+    );
+    const iconFileName = getIconFileName();
+    const assetsCarSource = path.join(__dirname, 'build', `${iconFileName}.Assets.car`);
+    const assetsCarDest = path.join(resourcesPath, 'Assets.car');
+
+    try {
+      await fs.access(assetsCarSource);
+      await fs.copyFile(assetsCarSource, assetsCarDest);
+      console.info(`✅ Copied Liquid Glass icon: ${iconFileName}.Assets.car`);
+    } catch {
+      // Non-critical: Assets.car not found or copy failed
+      // App will use fallback .icns icon on all macOS versions
+      console.info(`⏭️  Skipping Assets.car (not found or copy failed)`);
+    }
+  },
+  afterSign: verifyFontListSignature,
+  appId: macAppId,
+  appImage: {
+    artifactName: '${productName}-${version}.${ext}',
+  },
+
+  // Only explicitly selected native binaries should live outside app.asar.
+  asar: {
+    smartUnpack: false,
+  },
+
+  // Native modules must be unpacked from asar to work correctly
+  asarUnpack: getAsarUnpackPatterns(),
+
+  detectUpdateChannel: true,
+
+  directories: {
+    buildResources: 'build',
+    output: 'release',
+  },
+
+  dmg: {
+    artifactName: '${productName}-${version}-${arch}.${ext}',
+    background: 'resources/dmg.png',
+    contents: [
+      { type: 'file', x: 150, y: 240 },
+      { type: 'link', path: '/Applications', x: 450, y: 240 },
+    ],
+    iconSize: 80,
+    window: {
+      height: 400,
+      width: 600,
+    },
+  },
+
+  electronDownload: {
+    mirror: 'https://npmmirror.com/mirrors/electron/',
+  },
+  // Electron uses underscores for macOS .lproj directories and hyphens for
+  // Windows/Linux locale packs. Keep the English variants on every platform.
+  electronLanguages: ['en', 'en_GB', 'en_US', 'en-GB', 'en-US'],
+
+  files: [
+    'dist',
+    'resources',
+    'dist/renderer/**/*',
+    '!resources/locales',
+    '!resources/dmg.png',
+    // NOTICE:
+    // AUV must execute from the external bin directory, so its ASAR copy is unnecessary.
+    // The resources glob otherwise duplicates the binary copied by extraResources below.
+    // Source: PR #19051 ASAR Size Gate; resources/bin is staged in beforePack above.
+    // Remove these exclusions only if AUV no longer ships through extraResources.
+    '!resources/bin/auv',
+    '!resources/bin/auv.exe',
+    // Exclude all node_modules first
+    '!node_modules',
+    // Then explicitly include native modules using object form (handles pnpm symlinks)
+    ...getNativeModulesFilesConfig(),
+    // Include non-native runtime modules that are intentionally externalized from Vite.
+    ...getExternalRuntimeModulesFilesConfig(),
+  ],
+  generateUpdatesFilesForAllChannels: true,
+  linux: {
+    category: 'Utility',
+    icon: 'build/icon.png',
+    maintainer: 'electronjs.org',
+    target: ['AppImage', 'snap', 'deb', 'rpm', 'tar.gz'],
+  },
+  mac: {
+    binaries: [
+      'Contents/Resources/app.asar.unpacked/node_modules/font-list/libs/darwin/fontlist',
+      'Contents/Resources/bin/auv',
+    ],
+    compression: 'maximum',
+    entitlementsInherit: 'build/entitlements.mac.plist',
+    ...(macCommunicationEntitlements
+      ? {
+          entitlements: macCommunicationEntitlements,
+          provisioningProfile: macProvisioningProfile,
+        }
+      : {}),
+    extendInfo: {
+      CFBundleIconName: 'AppIcon',
+      CFBundleURLTypes: [
+        {
+          CFBundleURLName: 'LobeHub Protocol',
+          CFBundleURLSchemes: [protocolScheme],
+        },
+      ],
+      NSAppleEventsUsageDescription:
+        'Application needs to control System Settings to help you grant Full Disk Access automatically.',
+      NSCameraUsageDescription: "Application requests access to the device's camera.",
+      NSDocumentsFolderUsageDescription:
+        "Application requests access to the user's Documents folder.",
+      NSDownloadsFolderUsageDescription:
+        "Application requests access to the user's Downloads folder.",
+      NSMicrophoneUsageDescription: "Application requests access to the device's microphone.",
+      NSScreenCaptureUsageDescription:
+        'Application requests access to record and analyze screen content for AI assistance.',
+      NSUserActivityTypes: ['INSendMessageIntent'],
+    },
+    gatekeeperAssess: false,
+    hardenedRuntime: hasAppleCertificate,
+    notarize: hasAppleCertificate,
+    ...(hasAppleCertificate ? {} : { identity: null }),
+    target: [
+      { arch: [arch === 'arm64' ? 'arm64' : 'x64'], target: 'dmg' },
+      { arch: [arch === 'arm64' ? 'arm64' : 'x64'], target: 'zip' },
+    ],
+  },
+  npmRebuild: true,
+  nsis: {
+    allowToChangeInstallationDirectory: true,
+    artifactName: '${productName}-${version}-setup.${ext}',
+    createDesktopShortcut: 'always',
+    installerHeader: './build/nsis-header.bmp',
+    installerSidebar: './build/nsis-sidebar.bmp',
+    oneClick: false,
+    shortcutName: '${productName}',
+    uninstallDisplayName: '${productName}',
+    uninstallerSidebar: './build/nsis-sidebar.bmp',
+  },
+  protocols: [
+    {
+      name: 'LobeHub Protocol',
+      schemes: [protocolScheme],
+    },
+  ],
+  publish: getPublishConfig(),
+
+  // Release notes 配置
+  // 可以通过环境变量 RELEASE_NOTES 传入，或从文件读取
+  // 这会被写入 latest-mac.yml / latest.yml 中，供 generic provider 使用
+  releaseInfo: {
+    releaseNotes: process.env.RELEASE_NOTES || undefined,
+  },
+
+  extraResources: [
+    { from: 'resources/bin', to: 'bin' },
+    { from: 'resources/cli-package.json', to: 'package.json' },
+    // Local Sandbox helper binaries. The sandbox spawns these by path, so they
+    // must be real files — not entries inside app.asar, and not something the
+    // user is expected to install separately.
+    //
+    // Shipped as a resource rather than by externalizing
+    // `@anthropic-ai/sandbox-runtime`: its JavaScript bundles into the main
+    // process perfectly well, and making it a production dependency instead
+    // drags four transitive packages into electron-builder's node_modules
+    // traversal, which pnpm's layout does not satisfy (`@pondwader/socks5-server
+    // not found`). Only the binaries need to exist on disk.
+    {
+      from: 'node_modules/@anthropic-ai/sandbox-runtime/vendor',
+      to: 'sandbox-runtime/vendor',
+    },
+    // Carried alongside the binaries so the staging directory stays keyed on the
+    // backend's real version. Without it the version lookup falls back to the
+    // binary's size — which still works, but would defeat the per-version
+    // isolation in exactly the case it exists for: an installed app being
+    // updated.
+    {
+      from: 'node_modules/@anthropic-ai/sandbox-runtime/package.json',
+      to: 'sandbox-runtime/package.json',
+    },
+  ],
+
+  win: {
+    executableName: 'LobeHub',
+  },
+};
+
+const config = applyDesktopBuildProfile(
+  defaultConfig,
+  await loadDesktopBuildProfile(process.env.DESKTOP_BUILD_PROFILE_PATH),
+);
+
+export default config;

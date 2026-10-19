@@ -1,0 +1,36 @@
+'use client';
+
+import { Button } from '@lobehub/ui/base-ui';
+import { ChevronLeftIcon } from 'lucide-react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
+
+import AuthCard from '../../../../features/AuthCard';
+import { VerifyEmailContent } from './VerifyEmailContent';
+
+const VerifyEmailPage = () => {
+  const { t } = useTranslation('auth');
+  const searchParams = useSearchParams();
+  const email = searchParams.get('email');
+  const token = searchParams.get('token');
+  const callbackUrl = searchParams.get('callbackURL') || searchParams.get('callbackUrl') || '/';
+
+  return (
+    <AuthCard
+      subtitle={t('betterAuth.verifyEmail.description', { email: email || '@' })}
+      title={t('betterAuth.verifyEmail.title')}
+      footer={
+        <Link href={'/signin'}>
+          <Button block icon={ChevronLeftIcon} size={'large'}>
+            {t('betterAuth.verifyEmail.backToSignIn')}
+          </Button>
+        </Link>
+      }
+    >
+      <VerifyEmailContent callbackUrl={callbackUrl} email={email} token={token} />
+    </AuthCard>
+  );
+};
+
+export default VerifyEmailPage;

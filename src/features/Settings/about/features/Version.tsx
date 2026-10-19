@@ -1,0 +1,233 @@
+import {
+  getElectronIpc,
+  type UpdaterState,
+  useWatchBroadcast,
+} from '@lobechat/electron-client-ipc';
+import { Block, Flexbox } from '@lobehub/ui';
+import { Button, Tag } from '@lobehub/ui/base-ui';
+import { createStaticStyles } from 'antd-style';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import useSWR from 'swr';
+
+import { ProductLogo } from '@/components/Branding';
+import { CHANGELOG_URL, MANUAL_UPGRADE_URL, OFFICIAL_SITE } from '@/const/url';
+import { PUBLIC_ABOUT_PAGE_SWR_KEY } from '@/const/adminCacheKeys';
+import { CURRENT_VERSION } from '@/const/version';
+import { useBrandName } from '@/features/Brand';
+import { useNewVersion } from '@/features/User/UserPanel/useNewVersion';
+import { autoUpdateService } from '@/services/electron/autoUpdate';
+import { adminCommercialService } from '@/services/adminCommercial';
+import { useGlobalStore } from '@/store/global';
+import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
+import {
+  advanceDevDockClickSequence,
+  INITIAL_DEV_DOCK_CLICK_SEQUENCE,
+  toggleDevDockUnlocked,
+} from '@/utils/devDockUnlock';
+
+import { APP_VERSION } from './appVersion';
+
+const styles = createStaticStyles(({ css, cssVar }) => ({
+  logo: css`
+    border-radius: calc(${cssVar.borderRadiusLG} * 2);
+  `,
+}));
+
+const Version = memo<{ logoUrl?: string | null; mobile?: boolean }>(({ logoUrl, mobile }) => {
+  const hasNewVersion = useNewVersion();
+  const brandName = useBrandName();
+  const [latestVersion, serverVersion, useCheckServerVersion, useCheckLatestVersion] =
+    useGlobalStore((s) => [
+      s.latestVersion,
+      s.serverVersion,
+      s.useCheckServerVersion,
+      s.useCheckLatestVersion,
+    ]);
+  const { t } = useTranslation(['common', 'setting']);
+
+  const { data: aboutPage } = useSWR(PUBLIC_ABOUT_PAGE_SWR_KEY, () =>
+    adminCommercialService.getPublicAboutPage(),
+  );
+  useCheckServerVersion();
+
+  // Read the shared latest-version check state (deduped by key, no extra fetch)
+  // so a failed update check can surface a retry instead of silently rendering
+  // nothing — which is indistinguishable from "up to date".
+  const { enableCheckUpdates } = useServerConfigStore(featureFlagsSelectors);
+  const canAccessDevDock = useServerConfigStore((s) => s.canAccessDevDock);
+  const devDockClickSequence = useRef(INITIAL_DEV_DOCK_CLICK_SEQUENCE);
+  const {
+    error: updateCheckError,
+    isValidating: isCheckingUpdate,
+    mutate: recheckUpdate,
+  } = useCheckLatestVersion(enableCheckUpdates);
+
+  const showServerVersion = serverVersion && serverVersion !== CURRENT_VERSION;
+  const isDesktop = useMemo(() => !!getElectronIpc(), []);
+
+  const [updaterState, setUpdaterState] = useState<UpdaterState>({ stage: 'idle' });
+  const [buildChannel, setBuildChannel] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    autoUpdateService.getUpdaterState().then(setUpdaterState);
+  }, [isDesktop]);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    autoUpdateService.getBuildChannel().then(setBuildChannel);
+  }, [isDesktop]);
+
+  useWatchBroadcast('updaterStateChanged', (state: UpdaterState) => {
+    setUpdaterState(state);
+  });
+
+  const devDockGestureEnabled = import.meta.env.PROD && canAccessDevDock;
+
+  const handleVersionClick = () => {
+    if (!devDockGestureEnabled) return;
+
+    const result = advanceDevDockClickSequence(devDockClickSequence.current, Date.now());
+    devDockClickSequence.current = result.sequence;
+    if (result.completed) toggleDevDockUnlocked();
+  };
+
+  const renderUpdateButton = () => {
+    if (!isDesktop) {
+      if (hasNewVersion) {
+        return (
+          <a href={MANUAL_UPGRADE_URL} rel="noreferrer" style={{ flex: 1 }} target="_blank">
+            <Button block={mobile} type={'primary'}>
+              {t('upgradeVersion.action')}
+            </Button>
+          </a>
+        );
+      }
+      // A failed update check must not read as "up to date" — offer a retry.
+      if (updateCheckError) {
+        return (
+          <Button block={mobile} loading={isCheckingUpdate} onClick={() => recheckUpdate()}>
+            {t('checkForUpdates')}
+          </Button>
+        );
+      }
+      return null;
+    }
+
+    const { stage, progress } = updaterState;
+
+    switch (stage) {
+      case 'checking': {
+        return (
+          <Button loading block={mobile}>
+            {t('checkForUpdates')}
+          </Button>
+        );
+      }
+      case 'downloading': {
+        const percent = progress ? Math.round(progress.percent) : 0;
+        return (
+          <Button loading block={mobile}>
+            {t('downloadingUpdate', { percent })}
+          </Button>
+        );
+      }
+      case 'downloaded': {
+        return (
+          <Button block={mobile} type="primary" onClick={() => void autoUpdateService.installNow()}>
+            {t('restartToUpdate')}
+          </Button>
+        );
+      }
+      case 'latest': {
+        return (
+          <Button disabled block={mobile}>
+            {t('alreadyUpToDate')}
+          </Button>
+        );
+      }
+      default: {
+        return (
+          <Button block={mobile} onClick={() => void autoUpdateService.checkUpdate()}>
+            {t('checkForUpdates')}
+          </Button>
+        );
+      }
+    }
+  };
+
+  const logoLinkUrl = aboutPage?.logoLinkUrl || OFFICIAL_SITE;
+  const changelogUrl = aboutPage?.changelogUrl || CHANGELOG_URL;
+  const changelogLabel = aboutPage?.changelogLabel || t('changelog');
+
+  return (
+    <Flexbox
+      align={mobile ? 'stretch' : 'center'}
+      gap={16}
+      horizontal={!mobile}
+      justify={'space-between'}
+      width={'100%'}
+    >
+      <Flexbox horizontal align={'center'} flex={'none'} gap={16}>
+        <a href={logoLinkUrl} rel="noreferrer" target="_blank">
+          <Block
+            clickable
+            align={'center'}
+            className={styles.logo}
+            height={64}
+            justify={'center'}
+            width={64}
+          >
+            {logoUrl ? (
+              <img
+                alt={brandName}
+                height={52}
+                src={logoUrl}
+                style={{ objectFit: 'contain' }}
+                width={52}
+              />
+            ) : (
+              <ProductLogo size={52} />
+            )}
+          </Block>
+        </a>
+        <Flexbox align={'flex-start'} gap={6}>
+          <div style={{ fontSize: 18, fontWeight: 'bolder' }}>{brandName}</div>
+          <Flexbox gap={6} horizontal={!mobile}>
+            <Tag
+              style={{ cursor: devDockGestureEnabled ? 'pointer' : 'default' }}
+              onClick={handleVersionClick}
+            >
+              v{APP_VERSION}
+            </Tag>
+
+            {buildChannel && buildChannel !== 'stable' && (
+              <Tag color={'gold'}>
+                {t(`setting:tab.advanced.updateChannel.${buildChannel}`, {
+                  defaultValue: buildChannel.charAt(0).toUpperCase() + buildChannel.slice(1),
+                })}
+              </Tag>
+            )}
+            {showServerVersion && (
+              <Tag>{t('upgradeVersion.serverVersion', { version: `v${serverVersion}` })}</Tag>
+            )}
+            {hasNewVersion && (
+              <Tag color={'info'}>
+                {t('upgradeVersion.newVersion', { version: `v${latestVersion}` })}
+              </Tag>
+            )}
+          </Flexbox>
+        </Flexbox>
+      </Flexbox>
+      <Flexbox horizontal flex={mobile ? 1 : undefined} gap={8}>
+        <a href={changelogUrl} rel="noreferrer" style={{ flex: 1 }} target="_blank">
+          <Button block={mobile}>{changelogLabel}</Button>
+        </a>
+        {renderUpdateButton()}
+      </Flexbox>
+    </Flexbox>
+  );
+});
+
+export default Version;

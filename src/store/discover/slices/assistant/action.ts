@@ -1,0 +1,93 @@
+import { type CategoryItem, type CategoryListQuery } from '@lobehub/market-sdk';
+import { type SWRResponse } from 'swr';
+import useSWR from 'swr';
+
+import { discoverKeys } from '@/libs/swr/keys';
+import { discoverService } from '@/services/discover';
+import { type DiscoverStore } from '@/store/discover';
+import { globalHelpers } from '@/store/global/helpers';
+import { type StoreSetter } from '@/store/types';
+import {
+  type AssistantListResponse,
+  type AssistantMarketSource,
+  type AssistantQueryParams,
+  type DiscoverAssistantDetail,
+  type IdentifiersResponse,
+} from '@/types/discover';
+
+type Setter = StoreSetter<DiscoverStore>;
+type RequestOptions = { enabled?: boolean; keepPreviousData?: boolean };
+
+export const createAssistantSlice = (set: Setter, get: () => DiscoverStore, _api?: unknown) =>
+  new AssistantActionImpl(set, get, _api);
+
+export class AssistantActionImpl {
+  constructor(set: Setter, get: () => DiscoverStore, _api?: unknown) {
+    void _api;
+    void set;
+    void get;
+  }
+
+  useAssistantCategories = (
+    params: CategoryListQuery & { source?: AssistantMarketSource },
+    options: { enabled?: boolean } = {},
+  ): SWRResponse<CategoryItem[]> => {
+    const locale = globalHelpers.getCurrentLanguage();
+    return useSWR(
+      options.enabled === false ? null : discoverKeys.assistantCategories(locale, params),
+      async () => discoverService.getAssistantCategories(params),
+      {
+        revalidateOnFocus: false,
+      },
+    );
+  };
+
+  useAssistantDetail = (params: {
+    identifier: string;
+    source?: AssistantMarketSource;
+    version?: string;
+  }): SWRResponse<DiscoverAssistantDetail | undefined> => {
+    const locale = globalHelpers.getCurrentLanguage();
+    return useSWR(
+      discoverKeys.assistantDetail(locale, params),
+      async () => discoverService.getAssistantDetail(params),
+      {
+        revalidateOnFocus: false,
+      },
+    );
+  };
+
+  useAssistantIdentifiers = (params?: {
+    source?: AssistantMarketSource;
+  }): SWRResponse<IdentifiersResponse> => {
+    return useSWR(
+      discoverKeys.assistantIdentifiers(params?.source),
+      async () => discoverService.getAssistantIdentifiers(params),
+      {
+        revalidateOnFocus: false,
+      },
+    );
+  };
+
+  useAssistantList = (
+    params: AssistantQueryParams = {},
+    { enabled = true, keepPreviousData }: RequestOptions = {},
+  ): SWRResponse<AssistantListResponse> => {
+    const locale = globalHelpers.getCurrentLanguage();
+    return useSWR(
+      enabled ? discoverKeys.assistantList(locale, params) : null,
+      async () =>
+        discoverService.getAssistantList({
+          ...params,
+          page: params.page ? Number(params.page) : 1,
+          pageSize: params.pageSize ? Number(params.pageSize) : 21,
+        }),
+      {
+        keepPreviousData,
+        revalidateOnFocus: false,
+      },
+    );
+  };
+}
+
+export type AssistantAction = Pick<AssistantActionImpl, keyof AssistantActionImpl>;

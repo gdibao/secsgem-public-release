@@ -1,0 +1,29 @@
+{
+  "assets": {
+    "appPreview": "logo.png",
+    "linuxIcon": "icons/512x512.png",
+    "macIcon": "Icon.icns",
+    "nsisHeader": "nsis-header.bmp",
+    "nsisSidebar": "nsis-sidebar.bmp",
+    "windowsIcon": "icon.ico"
+  },
+  "profile": {
+    "applicationId": "com.gdibao.chituoai",
+    "applicationName": "驰拓 AI 助手",
+    "artifactName": "Chituo-AI-Assistant-${version}-${arch}.${ext}",
+    "description": "驰拓半导体私有化 AI 助手桌面客户端",
+    "deviceGatewayUrl": "https://fab.secsgem.com.cn/device-gateway",
+    "executableName": "ChituoAI",
+    "homepage": "https://secsgem.com.cn",
+    "installerArtifactName": "Chituo-AI-Assistant-${version}-setup.${ext}",
+    "officialCloudServer": "https://fab.secsgem.com.cn",
+    "oidcClientId": "lobehub-desktop",
+    "packageName": "chituo-ai-assistant",
+    "protocolScheme": "chituoai",
+    "publisher": "无锡市驰拓信息科技有限公司",
+    "shortcutName": "驰拓 AI 助手",
+    "uninstallDisplayName": "驰拓 AI 助手"
+  },
+  "profileRevisionId": "chituo-desktop-v2",
+  "releaseId": "chituo-github-release"
+}

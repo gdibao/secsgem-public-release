@@ -1,0 +1,26 @@
+# 隔离验收 compose overlay（端口 18080 系；不触 VM400/生产域名）
+# 用法：docker compose -f deploy/cadbom-runner/compose.overlay.yml up -d
+services:
+  cadbom-runner-py:
+    build: .
+    image: local/fab-v218-market:cadbom-runner-0.1.0
+    container_name: cadbom-runner-py
+    restart: "no"
+    volumes:
+      - cadbom-data:/data/cadbom
+  # app 镜像由 buildx bake 产出；隔离验收时以环境变量注入镜像标签
+  cadbom-app:
+    image: ${CADBOM_APP_IMAGE:-local/fab-v218-market:pilot-cadbom-runner-r1}
+    container_name: cadbom-app-iso
+    ports:
+      - "18080:3000"
+    environment:
+      - CADBOM_PYTHON=docker exec cadbom-runner-py python3 /runner/dxf_worker.py
+      - CADBOM_AUDIT_DIR=/data/cadbom/audit
+    volumes:
+      - cadbom-data:/data/cadbom
+    depends_on:
+      - cadbom-runner-py
+volumes:
+  cadbom-data:
+

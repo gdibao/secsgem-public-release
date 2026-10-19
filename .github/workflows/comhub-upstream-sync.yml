@@ -1,0 +1,151 @@
+name: ComHub Upstream Sync
+
+on:
+  schedule:
+    - cron: '0 20 * * 0'
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: 'Optional upstream tag/branch, for example v2.2.9'
+        required: false
+        type: string
+      channel:
+        description: 'Upstream release channel to auto-detect when upstream_ref is empty'
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - canary
+      base_branch:
+        description: 'ComHub branch to upgrade from'
+        required: true
+        default: upgrade/upstream-v2.2.6-comhub-merge
+        type: string
+      open_pr:
+        description: 'Open or update a PR when merge and verification are clean'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: comhub-upstream-sync-${{ github.event.inputs.base_branch || 'upgrade/upstream-v2.2.6-comhub-merge' }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24.18.0'
+  PNPM_VERSION: '10.33.0'
+  COMHUB_UPSTREAM_BASE_BRANCH: ${{ github.event.inputs.base_branch || 'upgrade/upstream-v2.2.6-comhub-merge' }}
+  COMHUB_UPSTREAM_CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
+
+jobs:
+  sync:
+    name: Create Upgrade Candidate
+    runs-on: ubuntu-latest
+    outputs:
+      candidate_branch: ${{ steps.sync.outputs.candidate_branch }}
+      merge_status: ${{ steps.sync.outputs.merge_status }}
+      report_path: ${{ steps.sync.outputs.report_path }}
+      upstream_ref: ${{ steps.sync.outputs.upstream_ref }}
+    steps:
+      - name: Checkout ComHub
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ env.COMHUB_UPSTREAM_BASE_BRANCH }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm install --frozen-lockfile
+          else
+            pnpm install --no-frozen-lockfile
+          fi
+
+      - name: Create candidate branch and report
+        id: sync
+        continue-on-error: true
+        env:
+          COMHUB_UPSTREAM_PUSH: 'true'
+        run: |
+          set -euo pipefail
+
+          args=("--push")
+          if [ -n "${{ github.event.inputs.upstream_ref || '' }}" ]; then
+            args+=("--upstream-ref" "${{ github.event.inputs.upstream_ref }}")
+          fi
+
+          node scripts/comhub-upstream-sync/run.mjs "${args[@]}"
+
+      - name: Upload sync report
+        if: always() && steps.sync.outputs.report_path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: comhub-upstream-sync-report
+          path: ${{ steps.sync.outputs.report_path }}
+
+      - name: Comment summary
+        if: always()
+        run: |
+          {
+            echo "## ComHub Upstream Sync"
+            echo ""
+            echo "- Upstream ref: \`${{ steps.sync.outputs.upstream_ref || 'unknown' }}\`"
+            echo "- Candidate branch: \`${{ steps.sync.outputs.candidate_branch || 'not-created' }}\`"
+            echo "- Merge status: \`${{ steps.sync.outputs.merge_status || 'failed-before-report' }}\`"
+            echo "- Report: \`${{ steps.sync.outputs.report_path || 'not-written' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open upgrade PR
+        if: >
+          steps.sync.outcome == 'success' &&
+          steps.sync.outputs.merge_status == 'clean' &&
+          (github.event_name == 'schedule' || github.event.inputs.open_pr == 'true')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          existing_pr="$(gh pr list \
+            --base "${COMHUB_UPSTREAM_BASE_BRANCH}" \
+            --head "${{ steps.sync.outputs.candidate_branch }}" \
+            --state open \
+            --json url \
+            --jq '.[0].url // ""')"
+
+          if [ -n "${existing_pr}" ]; then
+            gh pr edit "${existing_pr}" \
+              --title "chore: sync upstream ${{ steps.sync.outputs.upstream_ref }}" \
+              --body-file "${{ steps.sync.outputs.report_path }}"
+          else
+            gh pr create \
+              --base "${COMHUB_UPSTREAM_BASE_BRANCH}" \
+              --head "${{ steps.sync.outputs.candidate_branch }}" \
+              --title "chore: sync upstream ${{ steps.sync.outputs.upstream_ref }}" \
+              --body-file "${{ steps.sync.outputs.report_path }}"
+          fi
+
+      - name: Fail when sync is not clean
+        if: steps.sync.outcome != 'success' && steps.sync.outputs.merge_status != 'noop'
+        run: exit 1

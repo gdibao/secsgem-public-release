@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI 数据边界：8 个公开案例与企业部署启示 | 驰拓AI助手</title>
+    <meta
+      name="description"
+      content="区分云端处理、训练用途、员工上传与安全漏洞：回顾 ZCode、TRAE、Samsung、ChatGPT、DeepSeek、EchoLeak、Cursor 和 Reprompt 的公开证据、产品范围及补救进展。"
+    />
+    <meta name="theme-color" content="#086da8" />
+    <link
+      rel="canonical"
+      href="https://www.gdibao.com/insights/ai-data-boundaries/"
+    />
+    <meta
+      property="og:title"
+      content="AI 数据边界：8 个公开案例与企业部署启示"
+    />
+    <meta property="og:type" content="article" />
+    <meta property="article:section" content="风险预警" />
+    <meta
+      property="og:url"
+      content="https://www.gdibao.com/insights/ai-data-boundaries/"
+    />
+    <script>
+      (() => {
+        try {
+          const m = localStorage.getItem("chituo-theme") || "system";
+          const e =
+            m === "system"
+              ? matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+              : m;
+          document.documentElement.dataset.themeMode = m;
+          document.documentElement.dataset.theme = e;
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <style>
+      html,
+      body {
+        background: #f4f6f8;
+      }
+      html[data-theme="dark"],
+      html[data-theme="dark"] body {
+        background: #101820;
+        color: #edf5f7;
+      }
+    </style>
+    <link
+      rel="icon"
+      href="/assets/brand/chitu-logo-527f73df.png"
+      type="image/png"
+    />
+    <link rel="stylesheet" href="/assets/site.css" />
+    <link rel="stylesheet" href="/assets/brand-20260922-v1.css" />
+    <link rel="stylesheet" href="/assets/theme.css?v=20260924.3" />
+    <script src="/assets/site.js" defer></script>
+    <script src="/assets/theme.js" defer></script>
+  </head>
+  <body class="insight-page">
+    <a class="skip" href="#main">跳到正文</a>
+    <header class="site-header">
+      <div class="wrap nav-row">
+        <a class="brand" href="/" aria-label="驰拓AI助手 首页"
+          ><span class="brand-mark"
+            ><img
+              src="/assets/brand/chitu-logo-527f73df.png"
+              alt=""
+              width="36"
+              height="36" /></span
+          ><span>驰拓<span class="brand-light">AI助手</span></span></a
+        >
+        <div class="theme-switcher" role="group" aria-label="页面主题">
+          <button
+            type="button"
+            data-theme-value="light"
+            aria-label="使用浅色主题"
+            title="浅色主题"
+          >
+            <img
+              src="/assets/icons/sun.svg"
+              alt=""
+              width="16"
+              height="16"
+            /></button
+          ><button
+            type="button"
+            data-theme-value="dark"
+            aria-label="使用深色主题"
+            title="深色主题"
+          >
+            <img
+              src="/assets/icons/moon.svg"
+              alt=""
+              width="16"
+              height="16"
+            /></button
+          ><button
+            type="button"
+            data-theme-value="system"
+            aria-label="跟随系统主题"
+            title="跟随系统"
+          >
+            <img
+              src="/assets/icons/monitor.svg"
+              alt=""
+              width="16"
+              height="16"
+            />
+          </button>
+        </div>
+        <button
+          class="icon-button menu-toggle"
+          aria-label="打开导航"
+          aria-expanded="false"
+          aria-controls="navigation"
+        >
+          <img src="/assets/icons/menu.svg" alt="" width="24" height="24" />
+        </button>
+        <nav id="navigation" aria-label="主导航">
+          <a href="/">首页</a><a href="/industry-resources/">行业资源</a
+          ><a href="/downloads/">客户端下载</a
+          ><a href="/insights/ai-data-boundaries/" aria-current="page"
+            >风险预警</a
+          ><a class="nav-contact" href="/#contact"
+            >规划部署
+            <img
+              src="/assets/icons/arrow-up-right.svg"
+              alt=""
+              width="17"
+              height="17"
+          /></a>
+        </nav>
+      </div>
+    </header>
+    <main id="main">
+      <div class="article-header">
+        <div class="wrap">
+          <p class="breadcrumb"><a href="/">首页</a> / 风险预警 / 数据边界</p>
+          <p class="eyebrow">风险预警 / 企业 AI 治理</p>
+          <h1>AI 数据边界：<br />从 8 个公开案例看企业部署</h1>
+          <p class="lede">
+            资料在哪里处理、谁能访问、保留多久、工具能做什么，是四个不同的问题。以可追溯证据理解风险，才能把边界落实到部署与验收。
+          </p>
+          <p class="article-meta">
+            驰拓AI助手 · 更新与核查截止：2026-09-22 ·
+            日期与产品范围按来源分别说明
+          </p>
+        </div>
+      </div>
+      <div class="wrap article-layout">
+        <aside class="article-nav" aria-label="文章目录">
+          <strong>本文目录</strong><a href="#framework">先区分事实性质</a
+          ><a href="#zcode">01 ZCode</a><a href="#trae">02 TRAE CN</a
+          ><a href="#samsung">03 Samsung</a><a href="#chatgpt">04 ChatGPT</a
+          ><a href="#deepseek">05 DeepSeek</a><a href="#echoleak">06 EchoLeak</a
+          ><a href="#cursor">07 Cursor</a><a href="#reprompt">08 Reprompt</a
+          ><a href="#acceptance">落到验收清单</a>
+        </aside>
+        <article class="article-body">
+          <section id="framework">
+            <h2>先区分事实性质，再判断风险</h2>
+            <p>
+              云端处理不自动等于用于训练；员工提交不等于服务商主动窃取；研究演示不等于已有真实受害者。本地采集、网络传输、云端留存、训练使用与无权第三方取得数据，需要分别举证。
+            </p>
+            <div class="article-callout">
+              <p>
+                <strong>证据标签：</strong>A 为官方原文，B
+                为研究者原始材料或技术观察，C
+                为媒体报道。标签说明来源性质，不代表损失大小；官方政策也不等于对实际服务端行为的独立审计。
+              </p>
+            </div>
+            <p>
+              以下是截至核查日的公开资料摘要，不构成对产品当前所有版本的安全结论。对证据不足之处保留限制，同时记录已知整改。
+            </p>
+          </section>
+          <section id="zcode" class="case">
+            <span class="evidence-label"
+              >B 技术观察 + C 整改转述 + A 开源仓库</span
+            >
+            <h2>01 / ZCode：旧版工作区快照上传争议</h2>
+            <dl>
+              <dt>日期与产品范围</dt>
+              <dd>
+                技术分析发布于 2026-09-18，后于 09-19、09-21 更新。重点观察
+                ZCode 桌面客户端 3.12.3；另有 3.10.1.6272 的旧记录。不能推广到
+                GLM 模型、所有 CodeGeeX 产品或所有现行版本。
+              </dd>
+              <dt>已知事实</dt>
+              <dd>
+                多份本机分析发现工作区快照机制，部分清单包含本地 Git
+                元数据，部分小包有接收状态。首发作者更正：313MB
+                商业项目包上传失败，564
+                是失败计数，不能写成成功上传次数。生成快照、取得凭证和服务端接收是不同状态。
+              </dd>
+              <dt>补救与更正</dt>
+              <dd>
+                首发作者于 2026-09-19 报告 3.14.0
+                已移除相关上传代码，凭证接口返回 404。2026-09-21
+                媒体转述厂商开源及整改声明，包含无留存、未训练与第三方检查口径；开源仓库可直接查看。本文未取得两家评估机构的完整独立报告，不据此声称全部历史副本已获我方验证删除。
+              </dd>
+              <dt>证据边界与部署启示</dt>
+              <dd>
+                现有材料不足以断言所有用户整仓上传成功、仓库进入训练或已被无权第三方取得。企业应分别验证采集清单、传输结果、版本历史处理与服务端保留规则。
+              </dd>
+            </dl>
+            <div class="sources">
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://blog.ferstar.org/posts/zcode-silent-workspace-snapshot-upload/"
+                >首发分析及更正</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://vonng.com/ai/zcode-upload/"
+                >独立本机分析</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://blog.silencestar.com/posts/zcode-repo-snapshot/"
+                >旧版快照记录</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://www.ithome.com/1/005/046.htm"
+                >09-21 整改报道</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://github.com/zai-org/ZCode"
+                >官方开源仓库</a
+              >
+            </div>
+          </section>
+          <section id="trae" class="case">
+            <span class="evidence-label">A 官方政策 + B 单机技术质询</span>
+            <h2>02 / TRAE CN：索引上传与隐私模式的边界</h2>
+            <dl>
+              <dt>日期与产品范围</dt>
+              <dd>
+                社区技术帖发表于 2026-09-21 02:20（页面未标时区），观察记录涉及
+                09-17 至 09-20；对象为 Windows TraeCode CN 3.3.102 与 TraeWork
+                CN 0.1.67。官方文档访问日为 2026-09-22，无明确修订日期。
+              </dd>
+              <dt>已知事实</dt>
+              <dd>
+                TraeCode
+                官方文档说明，代码库文件可能临时上传以计算嵌入向量，完成后删除明文，并承诺代码库文件不用于训练、分析或优化。隐私模式的用途限制不等同于阻断传输。TraeWork
+                本地任务索引与网页、云端智能体的处理和留存口径不同。
+              </dd>
+              <dt>回应与现有控制</dt>
+              <dd>
+                官方文档提供隐私模式、索引和忽略文件规则；不能把当前文档写成针对该技术帖的新整改公告。本轮未核到针对
+                09-21 帖子的独立具名调查公告，也未对旧版逐一验证规则执行。
+              </dd>
+              <dt>证据边界与部署启示</dt>
+              <dd>
+                该单机帖子未取得明文请求体，本轮未找到完整工作区连同完整 .git
+                打包上传的充分原始证据。不能写成“TRAE 已确认上传完整 Git
+                历史”。采购应分别确认产品、模式、索引触发、文件范围和保留规则。
+              </dd>
+            </dl>
+            <div class="sources">
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://docs.trae.cn/ide_privacy-mode"
+                >TraeCode 隐私模式</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://docs.trae.cn/work_privacy-mode"
+                >TraeWork 隐私模式</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://docs.trae.cn/ide_codebase-indexing"
+                >索引说明</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://docs.trae.cn/ide_ignore-files"
+                >忽略文件规则</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://forum.trae.cn/t/topic/181978"
+                >09-21 社区技术帖</a
+              >
+            </div>
+          </section>
+          <section id="samsung" class="case">
+            <span class="evidence-label">C 媒体报道 · 员工主动提交</span>
+            <h2>03 / Samsung：日常提效中的资料上传</h2>
+            <dl>
+              <dt>日期与产品范围</dt>
+              <dd>
+                据报道事件发生于 2023 年 3月至4月，涉及三星半导体业务员工使用
+                ChatGPT；本次未取得内部记录中的准确发生日。
+              </dd>
+              <dt>已知事实</dt>
+              <dd>
+                报道指员工为排错、优化代码或生成纪要，将内部程序代码及会议内容提交给外部服务。可支持员工上传风险，不能推出资料已被其他用户或竞争对手取得。
+              </dd>
+              <dt>补救状态</dt>
+              <dd>
+                报道提到限制输入与加强内部使用管理。这是当时措施，不能当作三星现行政策；本次未找到三星公开的一手调查报告。
+              </dd>
+              <dt>部署启示</dt>
+              <dd>
+                提供可用的内部助手，同时制定资料分类和上传规则。不能将本案表述为服务商主动窃取，或未经证实认定资料已用于训练。
+              </dd>
+            </dl>
+            <div class="sources">
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://www.cybersecuritydive.com/news/Samsung-Electronics-ChatGPT-leak-data-privacy/647219/"
+                >Cybersecurity Dive 报道</a
+              >
+            </div>
+          </section>
+          <section id="chatgpt" class="case">
+            <span class="evidence-label">A 官方复盘 · 信息误暴露</span>
+            <h2>04 / ChatGPT：跨用户缓存信息显示缺陷</h2>
+            <dl>
+              <dt>日期与产品范围</dt>
+              <dd>
+                事件发生于 2023-03-20，OpenAI 官方复盘发表于
+                2023-03-24，涉及当时 ChatGPT 服务及部分活跃 Plus 用户。
+              </dd>
+              <dt>已知事实</dt>
+              <dd>
+                缓存客户端缺陷导致部分用户看到其他用户聊天标题，特定情况下可能看到新会话首条消息；部分活跃
+                Plus
+                用户的姓名、邮箱、账单地址及部分银行卡资料也可能被显示。完整卡号未暴露。
+              </dd>
+              <dt>补救状态</dt>
+              <dd>
+                官方称已下线排查、修补缺陷、恢复服务，并通知受影响用户及增加校验措施。
+              </dd>
+              <dt>证据边界与部署启示</dt>
+              <dd>
+                不是全部用户、全部历史对话的泄露结论，也未被官方定性为恶意入侵。企业应把会话标题、账户元数据与正文一起纳入敏感资料管理。
+              </dd>
+            </dl>
+            <div class="sources">
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://openai.com/index/march-20-chatgpt-outage/"
+                >OpenAI 官方事故复盘</a
+              >
+            </div>
+          </section>
+          <section id="deepseek" class="case">
+            <span class="evidence-label">B 研究者实际访问 · 数据库暴露</span>
+            <h2>05 / DeepSeek：在线服务日志数据库暴露</h2>
+            <dl>
+              <dt>日期与产品范围</dt>
+              <dd>
+                Wiz 于 2025-01-29 发布报告，涉及 DeepSeek 在线服务相关的
+                ClickHouse 数据库；暴露起始时间未核实。不等于本地部署的 DeepSeek
+                模型受到同一事件影响。
+              </dd>
+              <dt>已知事实</dt>
+              <dd>
+                研究者发现数据库无需认证即可访问，并验证能够查询日志，包含聊天历史、API
+                secrets、后端细节与运营元数据。这是实际接触暴露数据的事件，而非仅有攻击设想。
+              </dd>
+              <dt>补救状态</dt>
+              <dd>
+                Wiz
+                称披露后暴露很快关闭。本文未取得完整根因报告或第三方访问审计。
+              </dd>
+              <dt>证据边界与部署启示</dt>
+              <dd>
+                未知是否另有第三方复制数据，日志行数不能等同受害人数。企业知识库、日志数据库、调试接口和密钥同样需要鉴权与网络隔离。
+              </dd>
+            </dl>
+            <div class="sources">
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://www.wiz.io/blog/wiz-research-uncovers-exposed-deepseek-database-leak"
+                >Wiz 原始报告</a
+              >
+            </div>
+          </section>
+          <section id="echoleak" class="case">
+            <span class="evidence-label">A 漏洞记录 + B 研究演示</span>
+            <h2>06 / EchoLeak：企业上下文的间接提示注入</h2>
+            <dl>
+              <dt>日期与产品范围</dt>
+              <dd>
+                涉及 Microsoft 365 Copilot，CVE-2025-32711 公开记录日期为
+                2025-06-11。研究者称 2025 年 1月报告、5月服务端修复。现由 Cato
+                托管的文章标注
+                2025-05-31，本文保留页面日期与常见首发口径的差异。
+              </dd>
+              <dt>已知事实</dt>
+              <dd>
+                Aim
+                研究演示外部邮件中的间接提示注入，可能诱导助手外传其能够访问的企业上下文。范围取决于用户权限与实际上下文。
+              </dd>
+              <dt>补救状态</dt>
+              <dd>
+                微软已服务端修复，公告无客户操作要求。该修复不等于所有提示注入或所有连接器风险均被消除。
+              </dd>
+              <dt>证据边界与部署启示</dt>
+              <dd>
+                研究者表示不知道有客户受影响；本次未查到真实受害或在野利用的公开证据。应同时设计知识库权限继承、工具权限与网络出口控制。
+              </dd>
+            </dl>
+            <div class="sources">
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://www.catonetworks.com/blog/breaking-down-echoleak/"
+                >Aim / Cato 原始研究</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2025-32711"
+                >微软漏洞记录</a
+              >
+            </div>
+          </section>
+          <section id="cursor" class="case">
+            <span class="evidence-label">B 研究演示 · 非客户受害统计</span>
+            <h2>07 / Cursor：项目隐藏指令与工作区密钥</h2>
+            <dl>
+              <dt>日期与产品范围</dt>
+              <dd>
+                HiddenLayer 原始报告发表于 2025-07-31，涉及其研究环境中的 Cursor
+                代码助手。本文未核得可概括所有版本的适用范围。
+              </dd>
+              <dt>已知事实</dt>
+              <dd>
+                研究者在项目内容中放入恶意指令，演示助手读取后搜索工作区敏感信息，并向外发送
+                API 密钥。这是受控研究中的外传演示。
+              </dd>
+              <dt>补救状态</dt>
+              <dd>
+                本次未核得覆盖该报告路径的明确修复版本及完整范围。CurXecute、MCPoison
+                属于其他报告，不能套用它们的修复结论。
+              </dd>
+              <dt>证据边界与部署启示</dt>
+              <dd>
+                报告不证明真实客户已被盗，也不支持厂商主动窃密的说法。本地推理仍需约束文件访问、工具执行与联网能力，研发项目旁的令牌和构建密钥也应隔离。
+              </dd>
+            </dl>
+            <div class="sources">
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://www.hiddenlayer.com/research/how-hidden-prompt-injections-can-hijack-ai-code-assistants-like-cursor"
+                >HiddenLayer 原始研究</a
+              >
+            </div>
+          </section>
+          <section id="reprompt" class="case">
+            <span class="evidence-label">B 研究演示 · 已报告修复</span>
+            <h2>08 / Reprompt：个人版 Copilot 的会话风险</h2>
+            <dl>
+              <dt>日期与产品范围</dt>
+              <dd>
+                Varonis 博客目录标注首发 2026-01-14，正文现显示更新日期
+                2026-06-16。涉及 Copilot Personal；原始材料明确 Microsoft 365
+                Copilot 企业版不受该漏洞影响。
+              </dd>
+              <dt>已知事实</dt>
+              <dd>
+                研究演示可使个人版 Copilot
+                会话外传其可访问用户信息的攻击路径。首发日期并非实际受害日期，本文未查到报告列明真实受害者。
+              </dd>
+              <dt>补救状态</dt>
+              <dd>
+                Varonis
+                称微软确认已修复；本文采用“公开披露时已报告修复”，不根据后来更新的正文推算精确修复时点。
+              </dd>
+              <dt>证据边界与部署启示</dt>
+              <dd>
+                此案适合说明个人工具混用的治理风险，不能写成 2026
+                年微软企业客户数据已被盗。企业应明确允许使用的账号、产品版本及资料类别。
+              </dd>
+            </dl>
+            <div class="sources">
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://www.varonis.com/blog/reprompt"
+                >Varonis 原始报告</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://www.varonis.com/blog/all"
+                >首发日期目录</a
+              ><a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://www.bleepingcomputer.com/news/security/reprompt-attack-let-hackers-hijack-microsoft-copilot-sessions/amp/"
+                >产品范围交叉报道</a
+              >
+            </div>
+          </section>
+          <section id="acceptance" class="case">
+            <p class="eyebrow">从研究到部署</p>
+            <h2>把风险判断变成可验收的条目</h2>
+            <p>
+              下面是根据案例归纳的方案建议，不是相关厂商对驰拓AI助手的背书，也不表示本站方案已在客户环境通过全部验证。
+            </p>
+            <ul>
+              <li>
+                <strong>处理位置：</strong>列出推理、嵌入、重排、OCR
+                的实际调用地址，确认哪些路径经过外部服务。
+              </li>
+              <li>
+                <strong>访问范围：</strong
+                >用不同角色验证知识库权限继承、跨项目隔离与来源引用。
+              </li>
+              <li>
+                <strong>执行权限：</strong
+                >约定工具、文件和网络出口权限，针对提示注入测试关键限制。
+              </li>
+              <li>
+                <strong>数据生命周期：</strong
+                >确认日志、缓存、备份、删除与运维访问，保留验证记录。
+              </li>
+              <li>
+                <strong>交付责任：</strong
+                >把模型、硬件、品牌定制、升级维护和验收条件写入项目范围。
+              </li>
+            </ul>
+            <p>
+              本地
+              GPU、本地模型与私有知识库可以减少向外部服务提交资料的需要；本地部署仍需要访问控制、审计与网络治理。品牌定制本身不提供数据驻留保证。
+            </p>
+            <a class="button primary" href="/#contact"
+              >规划企业部署
+              <img
+                src="/assets/icons/arrow-up-right.svg"
+                alt=""
+                width="18"
+                height="18"
+            /></a>
+          </section>
+        </article>
+      </div>
+    </main>
+    <footer class="site-footer">
+      <div class="wrap footer-main">
+        <a class="brand" href="/">驰拓AI助手</a>
+        <p>无锡市驰拓信息科技有限公司</p>
+        <a href="mailto:wodekefu@gmail.com">wodekefu@gmail.com</a>
+      </div>
+      <div class="wrap footer-bottom">
+        <span>© 2026 无锡市驰拓信息科技有限公司</span
+        ><span>研究不确定性随来源明确标注</span><a href="/#contact">联系咨询</a
+        ><a
+          href="https://beian.miit.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >苏ICP备2022031387号-1</a
+        >
+      </div>
+    </footer>
+  </body>
+</html>

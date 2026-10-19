@@ -1,0 +1,11 @@
+{
+  "pages": ["pages/index/index", "pages/fab/fab"],
+  "window": {
+    "backgroundColor": "#07111f",
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#07111f",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "驰拓 AI 助手"
+  },
+  "style": "v2"
+}

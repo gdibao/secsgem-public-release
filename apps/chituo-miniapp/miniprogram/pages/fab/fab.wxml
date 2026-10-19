@@ -1,0 +1,14 @@
+<web-view
+  wx:if="{{!failed}}"
+  src="{{fabUrl}}"
+  bindload="handleLoad"
+  binderror="handleError"
+/>
+
+<view wx:else class="error-page">
+  <image class="logo" src="/assets/chituo-logo.png" mode="aspectFit" />
+  <text class="title">页面暂时无法打开</text>
+  <text class="message">请检查网络，以及小程序后台是否已配置 fab.gdibao.com 业务域名。</text>
+  <button class="primary" bindtap="retry">重新加载</button>
+  <button class="secondary" bindtap="copyAddress">复制网页地址</button>
+</view>

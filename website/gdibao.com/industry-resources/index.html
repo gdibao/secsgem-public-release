@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>18 域行业资源导航 | 驰拓AI助手</title>
+    <meta
+      name="description"
+      content="面向半导体 Fab 厂务、特气、UPW、自动化、SECS/GEM、EHS、调试与标准等18域的官方行业资料导航。"
+    />
+    <meta name="theme-color" content="#086da8" />
+    <link rel="canonical" href="https://www.gdibao.com/industry-resources/" />
+    <script>
+      (() => {
+        try {
+          const m = localStorage.getItem("chituo-theme") || "system";
+          const e =
+            m === "system"
+              ? matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+              : m;
+          document.documentElement.dataset.themeMode = m;
+          document.documentElement.dataset.theme = e;
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <link
+      rel="icon"
+      href="/assets/brand/chitu-logo-527f73df.png"
+      type="image/png"
+    />
+    <link rel="stylesheet" href="/assets/site.css" />
+    <link rel="stylesheet" href="/assets/brand-20260922-v1.css" />
+    <link rel="stylesheet" href="/assets/theme.css?v=20260924.5" />
+    <script src="/assets/site.js?v=20260924.2" defer></script>
+    <script src="/assets/theme.js" defer></script>
+    <script src="/assets/industry-directory-data.js?v=20260924.2" defer></script>
+    <script src="/assets/industry-official-status.js?v=20260924.3-reviewed" defer></script>
+    <script src="/assets/industry-curated-priority.js?v=20260924.1" defer></script>
+    <script src="/assets/industry-resources.js?v=20260924.4" defer></script>
+    <script src="/assets/industry-submission.js?v=20260924.1" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到正文</a>
+    <header class="site-header">
+      <div class="wrap nav-row">
+        <a class="brand" href="/" aria-label="驰拓AI助手 首页"
+          ><span class="brand-mark"
+            ><img
+              src="/assets/brand/chitu-logo-527f73df.png"
+              alt=""
+              width="36"
+              height="36" /></span
+          ><span>驰拓<span class="brand-light">AI助手</span></span></a
+        >
+        <div class="theme-switcher" role="group" aria-label="页面主题">
+          <button
+            type="button"
+            data-theme-value="light"
+            aria-label="使用浅色主题"
+            title="浅色主题"
+          >
+            <img
+              src="/assets/icons/sun.svg"
+              alt=""
+              width="16"
+              height="16"
+            /></button
+          ><button
+            type="button"
+            data-theme-value="dark"
+            aria-label="使用深色主题"
+            title="深色主题"
+          >
+            <img
+              src="/assets/icons/moon.svg"
+              alt=""
+              width="16"
+              height="16"
+            /></button
+          ><button
+            type="button"
+            data-theme-value="system"
+            aria-label="跟随系统主题"
+            title="跟随系统"
+          >
+            <img
+              src="/assets/icons/monitor.svg"
+              alt=""
+              width="16"
+              height="16"
+            />
+          </button>
+        </div>
+        <button
+          class="icon-button menu-toggle"
+          aria-label="打开导航"
+          aria-expanded="false"
+          aria-controls="navigation"
+        >
+          <img src="/assets/icons/menu.svg" alt="" width="24" height="24" />
+        </button>
+        <nav id="navigation" aria-label="主导航">
+          <a href="/">首页</a
+          ><a href="/industry-resources/" aria-current="page">行业资源</a
+          ><a href="/downloads/">客户端下载</a
+          ><a href="/insights/ai-data-boundaries/">风险预警</a
+          ><a class="nav-contact" href="/#contact"
+            >规划部署
+            <img
+              src="/assets/icons/arrow-up-right.svg"
+              alt=""
+              width="17"
+              height="17"
+          /></a>
+        </nav>
+      </div>
+    </header>
+    <main id="main">
+      <section class="compact-hero">
+        <div class="wrap">
+          <p class="eyebrow">半导体工程 · 18 域</p>
+          <h1>行业资源导航</h1>
+          <p class="lede">
+            以 Fab 系统边界与跨系统工程职能组织官方资料入口。18 域并非 18
+            套互不重叠的物理系统，同一企业可覆盖多个领域。
+          </p>
+          <div class="compact-meta">
+            <span>千家企业与展商目录</span><span>覆盖 18 个领域</span
+            ><span>企业、展会与核验状态分层</span>
+          </div>
+          <div class="directory-actions">
+            <button class="button primary" id="company-submit-open" type="button">
+              申报未入库企业
+            </button>
+            <a class="button secondary" href="#resource-search">检索企业目录</a>
+          </div>
+        </div>
+      </section>
+      <section class="section wrap">
+        <p class="resource-disclaimer">
+          行业资料导航，非合作背书。名单不代表完整市场排名、采购建议或官方认证；外部网站的内容与可用性由其运营方负责。
+        </p>
+        <div class="resource-view-switch" role="tablist" aria-label="企业目录视图">
+          <button id="resource-view-verified" type="button" role="tab" aria-selected="true">
+            已核官网
+          </button>
+          <button id="resource-view-pending" type="button" role="tab" aria-selected="false">
+            待核实企业
+          </button>
+        </div>
+        <div class="resource-toolbar resource-toolbar-expanded" aria-label="资源筛选">
+          <label
+            >搜索企业、用途或领域<input
+              id="resource-search"
+              type="search"
+              placeholder="例如：真空、超纯水、西门子"
+              autocomplete="off"
+          /></label>
+          <label
+            >领域<select id="resource-domain">
+              <option value="">全部 18 域</option>
+            </select></label
+          >
+          <label
+            >角色<select id="resource-role">
+              <option value="">全部角色</option>
+            </select></label
+          >
+          <label
+            >地区<select id="resource-region">
+              <option value="">全部地区</option>
+              <option value="china">国内主体</option>
+              <option value="overseas">海外/国际</option>
+              <option value="unknown">地区待核</option>
+            </select></label
+          >
+          <label
+            >来源或展会<select id="resource-source">
+              <option value="">全部来源</option>
+            </select></label
+          >
+          <button class="button secondary resource-reset" id="resource-reset" type="button">
+            重置筛选
+          </button>
+        </div>
+        <div class="resource-summary">
+          <span id="resource-count" role="status" aria-live="polite"></span
+          ><span>仅已完成归属核验的官方网站可在新窗口打开</span>
+        </div>
+        <div id="resource-grid" class="resource-grid"></div>
+        <div id="resource-empty" class="empty-state" hidden>
+          <strong>没有匹配的资源</strong>
+          <p>请缩短关键词，或清除领域和角色筛选。</p>
+        </div>
+        <nav id="resource-pagination" class="resource-pagination" aria-label="企业目录分页" hidden>
+          <button class="button secondary" id="resource-prev" type="button">上一页</button>
+          <span id="resource-page" aria-live="polite"></span>
+          <button class="button secondary" id="resource-next" type="button">下一页</button>
+        </nav>
+      </section>
+    </main>
+    <dialog class="directory-dialog" id="company-submit-dialog" aria-labelledby="company-submit-title">
+      <form id="company-submit-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">企业资料库</p>
+            <h2 id="company-submit-title">申报未入库企业</h2>
+          </div>
+          <button class="icon-button" id="company-submit-close" type="button" aria-label="关闭申报窗口">×</button>
+        </div>
+        <div class="submission-grid">
+          <label>企业法人全称<input name="company" maxlength="200" required /></label>
+          <label>官方网站<input name="website" type="url" maxlength="500" placeholder="https://" required /></label>
+          <label>企业角色<select name="role" required><option value="">请选择</option><option>设备厂商</option><option>部件厂商</option><option>材料厂商</option><option>供应商/代理</option><option>工程集成商</option><option>软件供应商</option><option>晶圆制造/存储/封测</option><option>标准组织</option><option>科研/行业组织</option><option>其他</option></select></label>
+          <label>地区<input name="region" maxlength="100" placeholder="例如：江苏无锡 / 德国" required /></label>
+        </div>
+        <fieldset class="submission-domains">
+          <legend>覆盖领域 <span>至少选择一项</span></legend>
+          <div id="company-submit-domains"></div>
+        </fieldset>
+        <label>来源说明<textarea name="source_note" maxlength="1000" rows="3" required placeholder="展会、产品线或可核实的业务依据"></textarea></label>
+        <div class="submission-grid private-fields">
+          <label>联系人<input name="contact_name" maxlength="100" required /></label>
+          <label>联系方式<input name="contact_method" maxlength="200" required /></label>
+        </div>
+        <p class="privacy-note">联系人与联系方式仅供管理员审核，不会进入公开目录。</p>
+        <div class="directory-captcha" id="directory-captcha">
+          <div class="captcha-stage" id="directory-captcha-stage" aria-label="滑块人机验证图像"></div>
+          <label>拖动滑块对准缺口<input id="directory-captcha-range" type="range" min="0" max="276" value="0" /></label>
+          <button class="text-link" id="directory-captcha-refresh" type="button">换一张</button>
+        </div>
+        <p class="submission-status" id="company-submit-status" role="status" aria-live="polite"></p>
+        <div class="dialog-actions">
+          <button class="button secondary" id="company-submit-cancel" type="button">取消</button>
+          <button class="button primary" type="submit">提交审核</button>
+        </div>
+      </form>
+    </dialog>
+    <footer class="site-footer">
+      <div class="wrap footer-main">
+        <a class="brand" href="/">驰拓AI助手</a>
+        <p>无锡市驰拓信息科技有限公司</p>
+        <a href="mailto:wodekefu@gmail.com"
+          >联系咨询
+          <img
+            src="/assets/icons/arrow-up-right.svg"
+            alt=""
+            width="16"
+            height="16"
+        /></a>
+      </div>
+      <div class="wrap footer-bottom">
+        <span>© 2026 无锡市驰拓信息科技有限公司</span
+        ><a href="/downloads/">客户端下载</a
+        ><a href="/insights/ai-data-boundaries/">数据边界研究</a
+        ><a
+          href="https://beian.miit.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >苏ICP备2022031387号-1</a
+        >
+      </div>
+    </footer>
+  </body>
+</html>

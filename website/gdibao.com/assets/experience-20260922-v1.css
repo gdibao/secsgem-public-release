@@ -1,0 +1,57 @@
+.home-experience .experience-widget {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  position: fixed;
+  z-index: 30;
+  right: max(24px, env(safe-area-inset-right, 0px));
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: stretch;
+  max-width: calc(100% - 24px);
+  height: 48px;
+  border: 1px solid #065f42;
+  border-radius: 6px;
+  background: #087b55;
+  color: #fff;
+  box-shadow: 0 4px 16px #17251f26;
+  touch-action: none;
+  user-select: none;
+}
+.home-experience .experience-grip {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid #ffffff3d;
+  border-radius: 5px 0 0 5px;
+  color: inherit;
+  background: #066848;
+  cursor: grab;
+  touch-action: none;
+}
+.home-experience .experience-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 14px;
+  border-radius: 0 5px 5px 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  touch-action: none;
+}
+.home-experience .experience-widget img { filter: brightness(0) invert(1); pointer-events: none; }
+.home-experience .experience-link:hover { background: #066848; }
+.home-experience .experience-widget.is-dragging,
+.home-experience .experience-widget.is-dragging * { cursor: grabbing; }
+.home-experience .experience-widget :focus-visible { outline: 3px solid #b56d16; outline-offset: 4px; }
+.home-experience .site-footer { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+.home-experience #contact :is(button, a, select, input, textarea) { scroll-margin-bottom: 104px; }
+@media (max-width: 760px) {
+  .home-experience .experience-widget { right: calc(12px + env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .home-experience .experience-link { padding: 0 11px; font-size: 13px; gap: 7px; }
+}

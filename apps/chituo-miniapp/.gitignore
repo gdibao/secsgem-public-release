@@ -1,0 +1,7 @@
+project.private.config.json
+*.key
+*.pem
+*.log
+node_modules/
+miniprogram_npm/
+coverage/

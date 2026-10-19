@@ -1,0 +1,279 @@
+import { describe, expect, it } from 'vitest';
+
+import { buildBotSender, formatPrompt, formatReferencedMessage } from '../formatPrompt';
+
+describe('formatReferencedMessage', () => {
+  it('should return undefined when raw is undefined', () => {
+    expect(formatReferencedMessage(undefined)).toBeUndefined();
+  });
+
+  it('should return undefined when referenced_message is missing', () => {
+    expect(formatReferencedMessage({})).toBeUndefined();
+  });
+
+  it('should return undefined when referenced_message has empty content', () => {
+    expect(
+      formatReferencedMessage({
+        referenced_message: { author: { username: 'someone' }, content: '' },
+      }),
+    ).toBeUndefined();
+  });
+
+  it('should return undefined when referenced_message content is undefined', () => {
+    expect(
+      formatReferencedMessage({
+        referenced_message: { author: { username: 'someone' } },
+      }),
+    ).toBeUndefined();
+  });
+
+  it('should format with global_name as sender', () => {
+    expect(
+      formatReferencedMessage({
+        referenced_message: {
+          author: { global_name: 'Alice', username: 'alice123' },
+          content: 'original message',
+        },
+      }),
+    ).toBe('<referenced_message sender="Alice">original message</referenced_message>');
+  });
+
+  it('should fall back to username when global_name is missing', () => {
+    expect(
+      formatReferencedMessage({
+        referenced_message: {
+          author: { username: 'bob456' },
+          content: 'some content',
+        },
+      }),
+    ).toBe('<referenced_message sender="bob456">some content</referenced_message>');
+  });
+
+  it('should use "unknown" when author is missing', () => {
+    expect(
+      formatReferencedMessage({
+        referenced_message: { content: 'orphan message' },
+      }),
+    ).toBe('<referenced_message sender="unknown">orphan message</referenced_message>');
+  });
+
+  it('should preserve multi-line content', () => {
+    expect(
+      formatReferencedMessage({
+        referenced_message: {
+          author: { global_name: 'Charlie' },
+          content: 'line one\nline two\nline three',
+        },
+      }),
+    ).toBe(
+      '<referenced_message sender="Charlie">line one\nline two\nline three</referenced_message>',
+    );
+  });
+});
+
+describe('formatPrompt', () => {
+  const baseMessage = {
+    author: { fullName: 'Test User', userId: '111', userName: 'testuser' },
+    text: 'hello world',
+  };
+
+  const discordSanitize = (text: string) => text.replaceAll(/<@!?bot123>\s*/g, '').trim();
+
+  it('should format basic message with speaker tag', () => {
+    const result = formatPrompt(baseMessage);
+
+    expect(result).toContain('hello world');
+    expect(result).toContain('<speaker');
+    expect(result).toContain('id="111"');
+    expect(result).toContain('username="testuser"');
+  });
+
+  it('should strip bot @mention from text', () => {
+    const msg = { ...baseMessage, text: '<@bot123> hello world' };
+    const result = formatPrompt(msg, { sanitizeUserInput: discordSanitize });
+
+    expect(result).toContain('hello world');
+    expect(result).not.toContain('<@bot123>');
+  });
+
+  it('should strip bot @mention with ! format', () => {
+    const msg = { ...baseMessage, text: '<@!bot123> hello world' };
+    const result = formatPrompt(msg, { sanitizeUserInput: discordSanitize });
+
+    expect(result).toContain('hello world');
+    expect(result).not.toContain('<@!bot123>');
+  });
+
+  it('should not strip mentions when no sanitizeUserInput provided', () => {
+    const msg = { ...baseMessage, text: '<@bot123> hello world' };
+    const result = formatPrompt(msg);
+
+    expect(result).toContain('<@bot123>');
+  });
+
+  it('should prepend referenced message before user text', () => {
+    const msg = {
+      ...baseMessage,
+      raw: {
+        referenced_message: {
+          author: { global_name: 'Alice', username: 'alice' },
+          content: 'what about this feature?',
+        },
+      },
+      text: 'I agree with this',
+    };
+    const result = formatPrompt(msg);
+
+    expect(result).toContain(
+      '<referenced_message sender="Alice">what about this feature?</referenced_message>',
+    );
+    expect(result).toContain('I agree with this');
+
+    // Referenced message should appear before the user's text
+    const refIndex = result.indexOf('<referenced_message');
+    const textIndex = result.indexOf('I agree with this');
+    expect(refIndex).toBeLessThan(textIndex);
+  });
+
+  it('should not include referenced_message tag when no reference exists', () => {
+    const msg = { ...baseMessage, raw: {} };
+    const result = formatPrompt(msg);
+
+    expect(result).not.toContain('<referenced_message');
+    expect(result).toContain('hello world');
+  });
+
+  it('should use global_name for speaker nickname from raw author', () => {
+    const msg = {
+      author: { fullName: 'Fallback Name', userId: '222', userName: 'user2' },
+      raw: { author: { avatar: 'abc', global_name: 'Display Name' } },
+      text: 'test',
+    };
+    const result = formatPrompt(msg);
+
+    expect(result).toContain('nickname="Display Name"');
+  });
+
+  it('should handle both @mention stripping and referenced message together', () => {
+    const sanitize = (text: string) => text.replaceAll(/<@!?bot999>\s*/g, '').trim();
+
+    const msg = {
+      ...baseMessage,
+      raw: {
+        referenced_message: {
+          author: { global_name: 'Bob', username: 'bob' },
+          content: 'can we do this?',
+        },
+      },
+      text: '<@bot999> yes we can',
+    };
+    const result = formatPrompt(msg, { sanitizeUserInput: sanitize });
+
+    expect(result).not.toContain('<@bot999>');
+    expect(result).toContain('yes we can');
+    expect(result).toContain(
+      '<referenced_message sender="Bob">can we do this?</referenced_message>',
+    );
+  });
+
+  it('should fall back fullName as nickname when raw author is absent', () => {
+    const result = formatPrompt(baseMessage);
+
+    expect(result).toContain('nickname="Test User"');
+  });
+
+  it('should prepend Telegram reply_to_message as referenced_message', () => {
+    const msg = {
+      ...baseMessage,
+      raw: {
+        reply_to_message: {
+          from: { first_name: 'Dana', username: 'dana' },
+          text: 'please translate this',
+        },
+      },
+      text: '@bot 翻译',
+    };
+    const result = formatPrompt(msg);
+
+    expect(result).toContain(
+      '<referenced_message sender="Dana">please translate this</referenced_message>',
+    );
+    expect(result).toContain('@bot 翻译');
+  });
+
+  it('should use Telegram reply_to_message caption when text is empty', () => {
+    expect(
+      formatReferencedMessage({
+        reply_to_message: { caption: 'photo caption', from: { username: 'eve' } },
+      }),
+    ).toBe('<referenced_message sender="eve">photo caption</referenced_message>');
+  });
+
+  it('should include both the full Telegram reply and the selected quote', () => {
+    expect(
+      formatReferencedMessage({
+        quote: { text: 'selected fragment' },
+        reply_to_message: {
+          from: { first_name: 'Dana' },
+          text: 'full original message',
+        },
+      }),
+    ).toBe(
+      '<referenced_message sender="Dana"><full_message>full original message</full_message>\n<selected_quote>selected fragment</selected_quote></referenced_message>',
+    );
+  });
+
+  it('should preserve a selected Telegram quote when reply_to_message is omitted', () => {
+    expect(formatReferencedMessage({ quote: { text: 'selected fragment' } })).toBe(
+      '<referenced_message sender="unknown"><selected_quote>selected fragment</selected_quote></referenced_message>',
+    );
+  });
+});
+
+describe('buildBotSender', () => {
+  it('keeps a Feishu sender as name only, dropping the duplicated username', () => {
+    expect(
+      buildBotSender(
+        { author: { fullName: '文彬', userId: 'ou_1', userName: '文彬' }, raw: {} },
+        'feishu',
+      ),
+    ).toEqual({
+      avatar: undefined,
+      fullName: '文彬',
+      id: 'ou_1',
+      platform: 'feishu',
+      username: undefined,
+    });
+  });
+
+  it('resolves a Discord avatar hash and prefers global_name', () => {
+    expect(
+      buildBotSender(
+        {
+          author: { fullName: 'john', userId: '123', userName: 'john' },
+          raw: { author: { avatar: 'a_hash', global_name: 'John Doe' } },
+        },
+        'discord',
+      ),
+    ).toEqual({
+      avatar: 'https://cdn.discordapp.com/avatars/123/a_hash.gif',
+      fullName: 'John Doe',
+      id: '123',
+      platform: 'discord',
+      username: 'john',
+    });
+  });
+
+  it('passes an absolute avatar url through and drops an opaque one', () => {
+    expect(
+      buildBotSender(
+        { author: { userId: 'u1' }, raw: { author: { avatar: 'https://x/a.png' } } },
+        'slack',
+      ).avatar,
+    ).toBe('https://x/a.png');
+    expect(
+      buildBotSender({ author: { userId: 'u1' }, raw: { author: { avatar: 'hash' } } }, 'slack')
+        .avatar,
+    ).toBeUndefined();
+  });
+});

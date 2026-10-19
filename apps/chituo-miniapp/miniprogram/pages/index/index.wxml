@@ -1,0 +1,16 @@
+<view class="page-shell">
+  <view class="brand-panel">
+    <image class="logo" src="/assets/chituo-logo.png" mode="aspectFit" />
+    <text class="eyebrow">半导体私有化 AI 平台</text>
+    <text class="title">驰拓 AI 助手</text>
+    <text class="summary">通过现有 Fab 账号访问专业助手、知识与模型能力。</text>
+  </view>
+
+  <view class="status {{online ? 'online' : 'offline'}}">
+    <view class="status-dot" />
+    <text>{{networkLabel}}</text>
+  </view>
+
+  <button class="primary" bindtap="openFab" disabled="{{!online}}">进入 Fab</button>
+  <text class="notice">登录与账户验证由 fab.gdibao.com 原生页面完成。</text>
+</view>

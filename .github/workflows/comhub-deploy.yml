@@ -1,0 +1,623 @@
+name: ComHub Deploy Production
+run-name: ComHub Deploy Production (source=${{ inputs.source_sha || github.sha }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_module_runtime:
+        description: 'Deploy the optional Module Runtime service while keeping mutation flags closed'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      source_sha:
+        description: 'Optional full commit SHA from main; defaults to the selected workflow ref SHA'
+        required: false
+        type: string
+permissions:
+  contents: read
+  packages: read
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  NODEJS_VERSION: '24.18.0'
+
+jobs:
+  resolve-source:
+    name: Resolve Deployment Source
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.source.outputs.image_tag }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
+    steps:
+      - name: Checkout main history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Validate source commit
+        id: source
+        shell: bash
+        env:
+          REQUESTED_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+
+          [[ "$GITHUB_REF" = 'refs/heads/main' ]] || {
+            echo 'production deployment workflows must be dispatched from main' >&2
+            exit 1
+          }
+
+          source_sha="${REQUESTED_SOURCE_SHA:-$GITHUB_SHA}"
+          source_sha="${source_sha,,}"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo 'source_sha must be a full 40-character commit SHA' >&2
+            exit 1
+          }
+
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git cat-file -e "${source_sha}^{commit}"
+          git merge-base --is-ancestor "$source_sha" origin/main || {
+            echo 'source_sha must belong to origin/main history' >&2
+            exit 1
+          }
+
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "image_tag=sha-${source_sha:0:12}" >> "$GITHUB_OUTPUT"
+
+  resolve-images:
+    name: Resolve Existing Image Digests
+    needs: [resolve-source]
+    runs-on: ubuntu-latest
+    outputs:
+      image_ref: ${{ steps.images.outputs.image_ref }}
+      runtime_image_ref: ${{ steps.images.outputs.runtime_image_ref }}
+    steps:
+      - name: Checkout deployment tooling
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ vars.COMHUB_GHCR_USERNAME || github.repository_owner }}
+          password: ${{ secrets.COMHUB_GHCR_TOKEN || github.token }}
+
+      - name: Resolve immutable image references
+        id: images
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ needs.resolve-source.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+
+          image_ref="$(node .github/scripts/resolveImageReference.mjs "${IMAGE_NAME}:${IMAGE_TAG}")"
+          runtime_image_ref="$(node .github/scripts/resolveImageReference.mjs "${IMAGE_NAME}-module-runtime:${IMAGE_TAG}")"
+          echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
+          echo "runtime_image_ref=$runtime_image_ref" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy Production
+    needs: [resolve-source, resolve-images]
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.resolve-source.result == 'success' && needs.resolve-images.result == 'success' }}
+    timeout-minutes: 45
+    environment: production
+    concurrency:
+      group: comhub-production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Install SSH key
+        shell: bash
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.COMHUB_SSH_KNOWN_HOSTS }}
+          SSH_PRIVATE_KEY: ${{ secrets.COMHUB_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          grep -q '[^[:space:]]' <<< "$SSH_KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/comhub_deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/comhub_deploy_key
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Login to GHCR for production image relay
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ vars.COMHUB_GHCR_USERNAME || github.repository_owner }}
+          password: ${{ secrets.COMHUB_GHCR_TOKEN || github.token }}
+
+      - name: Install OCI relay tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --no-install-recommends --yes skopeo
+          fi
+
+      - name: Relay immutable images to production
+        shell: bash
+        env:
+          DEPLOY_DIR: ${{ vars.COMHUB_DEPLOY_DIR || '/www/compose/comhub' }}
+          IMAGE_REF: ${{ needs.resolve-images.outputs.image_ref }}
+          RUNTIME_IMAGE_REF: ${{ needs.resolve-images.outputs.runtime_image_ref }}
+          SSH_HOST: ${{ secrets.COMHUB_SSH_HOST }}
+          SSH_PORT: ${{ secrets.COMHUB_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.COMHUB_SSH_USER || 'root' }}
+        run: |
+          set -euo pipefail
+
+          ssh_options=(
+            -i "$HOME/.ssh/comhub_deploy_key"
+            -p "$SSH_PORT"
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=6
+            -o ConnectTimeout=30
+          )
+          remote_target="$SSH_USER@$SSH_HOST"
+          relay_root="$(mktemp -d)"
+          trap 'rm -rf "$relay_root"' EXIT
+
+          ssh "${ssh_options[@]}" "$remote_target" \
+            "DEPLOY_DIR='$DEPLOY_DIR' bash -s" <<'REMOTE_PREPARE'
+          set -euo pipefail
+          cd "$DEPLOY_DIR"
+          echo "Disk usage before image relay:"
+          df -h /
+          docker system df || true
+          echo "Pruning unused Docker images before image relay..."
+          docker image prune -af || true
+          REMOTE_PREPARE
+
+          relay_image() {
+            local image_ref="$1"
+            local label="$2"
+            local archive="$relay_root/${label}.oci.tar"
+            local repository="${image_ref%@sha256:*}"
+            local digest="${image_ref##*@sha256:}"
+            local relay_ref="${repository}:relay-${digest:0:12}"
+
+            [[ "$image_ref" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]] || {
+              echo "Relay requires an immutable GHCR image reference: $label" >&2
+              return 1
+            }
+
+            echo "Exporting $label as a digest-preserving OCI archive..."
+            skopeo copy \
+              --all \
+              --preserve-digests \
+              --src-authfile "$HOME/.docker/config.json" \
+              "docker://${image_ref}" \
+              "oci-archive:${archive}:${relay_ref}"
+
+            echo "Streaming $label to the production containerd content store..."
+            gzip -1 -c "$archive" | \
+              timeout "${COMHUB_IMAGE_RELAY_TIMEOUT:-1800}" \
+                ssh "${ssh_options[@]}" "$remote_target" \
+                  'gzip -dc | ctr -n moby images import --all-platforms -'
+            rm -f "$archive"
+
+            echo "Registering the immutable $label digest on production..."
+            timeout 120 ssh "${ssh_options[@]}" "$remote_target" \
+              "timeout 90 ctr -n moby images pull --platform linux/amd64 '$image_ref' >/dev/null"
+          }
+
+          relay_image "$IMAGE_REF" application
+          relay_image "$RUNTIME_IMAGE_REF" module-runtime
+
+      - name: Run remote blue-green deploy
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.COMHUB_SSH_HOST }}
+          SSH_PORT: ${{ secrets.COMHUB_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.COMHUB_SSH_USER || 'root' }}
+          DEPLOY_DIR: ${{ vars.COMHUB_DEPLOY_DIR || '/www/compose/comhub' }}
+          IMAGE_REF: ${{ needs.resolve-images.outputs.image_ref }}
+          IMAGE_TAG: ${{ needs.resolve-source.outputs.image_tag }}
+          REQUIRE_MODULE_RUNTIME: ${{ inputs.deploy_module_runtime == 'true' }}
+          RUNTIME_IMAGE_REF: ${{ needs.resolve-images.outputs.runtime_image_ref }}
+        run: |
+          set -euo pipefail
+
+          ssh_options=(
+            -i "$HOME/.ssh/comhub_deploy_key"
+            -p "$SSH_PORT"
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=6
+            -o ConnectTimeout=30
+          )
+
+          timeout "${COMHUB_REMOTE_DEPLOY_TIMEOUT:-2400}" \
+            ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
+            "DEPLOY_DIR='$DEPLOY_DIR' IMAGE_REF='$IMAGE_REF' IMAGE_TAG='$IMAGE_TAG' REQUIRE_MODULE_RUNTIME='$REQUIRE_MODULE_RUNTIME' RUNTIME_IMAGE_REF='$RUNTIME_IMAGE_REF' bash -s" <<'REMOTE_DEPLOY'
+          set -euo pipefail
+
+          cd "$DEPLOY_DIR"
+          export COMHUB_MODULE_RUNTIME_IMAGE="$RUNTIME_IMAGE_REF"
+
+          application_rollout_started=false
+          application_rollout_committed=false
+          previous_app_id=""
+          previous_app_image=""
+          previous_app_tag=""
+          runtime_rollout_started=false
+          runtime_rollout_committed=false
+          previous_runtime_id=""
+          previous_runtime_image=""
+
+          application_verify_failed() {
+            local phase="$1"
+            local check="$2"
+            printf 'APPLICATION_VERIFY_FAILED: phase=%s check=%s\n' "$phase" "$check" >&2
+            return 1
+          }
+
+          deploy_application() {
+            local image="$1"
+            local image_tag="$2"
+            COMHUB_IMAGE="$image" COMHUB_IMAGE_TAG="$image_tag" ./deploy.sh "$image"
+          }
+
+          verify_application() {
+            local expected_image="${1:-}"
+            local expected_tag="${2:-}"
+            local phase="${3:-application}"
+            local actual_image actual_tag app_id health_status
+
+            test -n "$expected_image" || {
+              application_verify_failed "$phase" expected_image_missing
+              return 1
+            }
+            test -n "$expected_tag" || {
+              application_verify_failed "$phase" expected_tag_missing
+              return 1
+            }
+
+            app_id="$(docker compose ps -q "$app_service")"
+            test -n "$app_id" || {
+              application_verify_failed "$phase" container_missing
+              return 1
+            }
+            actual_image="$(docker inspect -f '{{.Config.Image}}' "$app_id")"
+            test "$actual_image" = "$expected_image" || {
+              application_verify_failed "$phase" image_mismatch
+              return 1
+            }
+            actual_tag="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$app_id" | sed -n 's/^COMHUB_IMAGE_TAG=//p')"
+            test "$actual_tag" = "$expected_tag" || {
+              application_verify_failed "$phase" image_tag_mismatch
+              return 1
+            }
+            health_status="missing"
+            for attempt in $(seq 1 60); do
+              health_status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$app_id")"
+              [ "$health_status" = "healthy" ] && break
+              [ "$health_status" = "unhealthy" ] && break
+              sleep 1
+            done
+            test "$health_status" = "healthy" || {
+              application_verify_failed "$phase" health_status_invalid
+              return 1
+            }
+
+            printf 'APPLICATION_VERIFY_PASSED: phase=%s\n' "$phase"
+          }
+
+          runtime_verify_failed() {
+            local phase="$1"
+            local check="$2"
+            printf 'MODULE_RUNTIME_VERIFY_FAILED: phase=%s check=%s\n' "$phase" "$check" >&2
+            return 1
+          }
+
+          verify_module_runtime() {
+            local expected_image="${1:-}"
+            local phase="${2:-runtime}"
+            local actual_image artifact_source docker_artifact_root docker_host docker_socket_mount runtime_id
+
+            test -n "$expected_image" || {
+              runtime_verify_failed "$phase" expected_image_missing
+              return 1
+            }
+
+            runtime_id="$(docker compose ps -q module-runtime)"
+            test -n "${runtime_id}" || {
+              runtime_verify_failed "$phase" container_missing
+              return 1
+            }
+
+            actual_image="$(docker inspect -f '{{.Config.Image}}' "${runtime_id}")"
+            test "$actual_image" = "$expected_image" || {
+              runtime_verify_failed "$phase" image_mismatch
+              return 1
+            }
+            test "$(docker inspect -f '{{.Config.User}}' "${runtime_id}")" = "10001:10001" || {
+              runtime_verify_failed "$phase" user_mismatch
+              return 1
+            }
+            test "$(docker inspect -f '{{.HostConfig.ReadonlyRootfs}}' "${runtime_id}")" = "true" || {
+              runtime_verify_failed "$phase" writable_rootfs
+              return 1
+            }
+            docker inspect -f '{{json .HostConfig.SecurityOpt}}' "${runtime_id}" | grep -q no-new-privileges || {
+              runtime_verify_failed "$phase" no_new_privileges_missing
+              return 1
+            }
+            docker inspect -f '{{range .Mounts}}{{if eq .Destination "/runtime/artifacts"}}{{.RW}}{{end}}{{end}}' "${runtime_id}" | grep -qx false || {
+              runtime_verify_failed "$phase" artifact_mount_not_read_only
+              return 1
+            }
+
+            artifact_source="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/runtime/artifacts"}}{{.Source}}{{end}}{{end}}' "${runtime_id}")"
+            docker_artifact_root="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${runtime_id}" | sed -n 's/^MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT=//p')"
+            test -n "$artifact_source" || {
+              runtime_verify_failed "$phase" artifact_source_missing
+              return 1
+            }
+            test "$docker_artifact_root" = "$artifact_source" || {
+              runtime_verify_failed "$phase" artifact_root_mismatch
+              return 1
+            }
+
+            docker_host="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${runtime_id}" | sed -n 's/^DOCKER_HOST=//p')"
+            test "$docker_host" = 'unix:///run/module-app-docker/docker.sock' || {
+              runtime_verify_failed "$phase" docker_host_invalid
+              return 1
+            }
+            docker_socket_mount="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/run/module-app-docker/docker.sock"}}{{.Type}}|{{.RW}}{{end}}{{end}}' "${runtime_id}")"
+            test "$docker_socket_mount" = 'bind|false' || {
+              runtime_verify_failed "$phase" rootless_socket_mount_invalid
+              return 1
+            }
+            test -z "$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "${runtime_id}")" || {
+              runtime_verify_failed "$phase" host_docker_socket_exposed
+              return 1
+            }
+            docker compose exec -T module-runtime test -S /run/module-app-docker/docker.sock < /dev/null || {
+              runtime_verify_failed "$phase" rootless_socket_unavailable
+              return 1
+            }
+            docker compose exec -T module-runtime docker info --format '{{json .SecurityOptions}}' < /dev/null | grep -q 'name=rootless' || {
+              runtime_verify_failed "$phase" daemon_not_rootless
+              return 1
+            }
+            docker compose exec -T module-runtime node -e "const http=require('http');http.get('http://127.0.0.1:3210/ready',response=>process.exit(response.statusCode===200?0:1)).on('error',()=>process.exit(1))" < /dev/null || {
+              runtime_verify_failed "$phase" readiness_failed
+              return 1
+            }
+            docker compose exec -T module-runtime node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>process.exit(response.statusCode===503?0:1));request.end('{}')" < /dev/null || {
+              runtime_verify_failed "$phase" disabled_invocation_boundary_failed
+              return 1
+            }
+
+            printf 'MODULE_RUNTIME_VERIFY_PASSED: phase=%s\n' "$phase"
+          }
+
+          rollback_deployment() {
+            local failure_status=$?
+            local application_rollback_status=0
+            local runtime_rollback_status=0
+            trap - ERR EXIT
+            set +e
+
+            if [ "$application_rollout_started" = "true" ] && [ "$application_rollout_committed" != "true" ]; then
+              if [ "$failure_status" -eq 0 ]; then
+                failure_status=1
+              fi
+              echo 'APPLICATION_ROLLBACK_STARTED'
+              deploy_application "$previous_app_image" "$previous_app_tag" || application_rollback_status=$?
+              if [ "$application_rollback_status" -eq 0 ]; then
+                verify_application "$previous_app_image" "$previous_app_tag" "rollback" || application_rollback_status=$?
+              fi
+              if [ "$application_rollback_status" -eq 0 ]; then
+                echo 'APPLICATION_ROLLBACK_COMPLETED'
+              else
+                printf 'APPLICATION_ROLLBACK_FAILED: status=%s\n' "$application_rollback_status" >&2
+              fi
+            fi
+
+            if [ "$REQUIRE_MODULE_RUNTIME" = "true" ] && [ "$runtime_rollout_started" = "true" ] && [ "$runtime_rollout_committed" != "true" ]; then
+              if [ "$failure_status" -eq 0 ]; then
+                failure_status=1
+              fi
+              echo 'MODULE_RUNTIME_ROLLBACK_STARTED'
+              export COMHUB_MODULE_RUNTIME_IMAGE="$previous_runtime_image"
+              docker compose up -d --no-deps --wait module-runtime || runtime_rollback_status=$?
+              if [ "$runtime_rollback_status" -eq 0 ]; then
+                verify_module_runtime "$previous_runtime_image" "rollback" || runtime_rollback_status=$?
+              fi
+              if [ "$runtime_rollback_status" -eq 0 ]; then
+                echo 'MODULE_RUNTIME_ROLLBACK_COMPLETED'
+              else
+                printf 'MODULE_RUNTIME_ROLLBACK_FAILED: status=%s\n' "$runtime_rollback_status" >&2
+              fi
+            fi
+
+            exit "$failure_status"
+          }
+
+          verify_runtime_auth_boundary() {
+            local probe_name="module-runtime-auth-probe-${IMAGE_TAG}"
+            local probe_status=""
+            docker rm -f "$probe_name" >/dev/null 2>&1 || true
+            if ! docker run -d --name "$probe_name" --read-only --tmpfs /tmp:size=16m \
+              --health-cmd "node -e \"require('http').get('http://127.0.0.1:3210/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\"" \
+              --health-interval 1s --health-timeout 3s --health-retries 30 \
+              -e MODULE_APP_EXECUTION_ENABLED=true \
+              -e MODULE_APP_RUNTIME_INVOCATION_ENABLED=true \
+              -e MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT=/runtime/artifacts \
+              -e MODULE_APP_RUNTIME_INTERNAL_TOKEN=deployment-auth-probe \
+              -e 'MODULE_APP_RUNTIME_JWKS={"keys":[{"kty":"RSA","n":"t0juSBx7vW85s4fkqPzJaPHOK5OI2qlJLfjSCo3FlYogbBP67V4VN5L_TRFxtaccpEI0B6dGjFFjmJaHmCU2kKPbi3-c76k0sxCwrL6yuGV0uUc4ZOij2fviiQKdxAMlCA3Ke3XkG-p1JNQCz08Ge0xV0CDicKRh_njO0e0J1cE0X_7GOFwmZtLsU9541C4b4Jj2IsUauOSQkFCARvPTexC4V6hMir7sIbb0f9GqQk2MA0CIdMD2fcl6Q6bVgBCxuU0Q2D0D91JYSZWN-AAuXjT7A8bXErjBEK0_MNEWP3HxJZYjRHMDO_zW_tR1FmRKbP65ZtKKh2HQqkP4CrSn3Q","e":"AQAB","alg":"RS256","use":"sig","kid":"module-runtime-public-test"}]}' \
+              -e MODULE_APP_RUNTIME_NODE22_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+              -e MODULE_APP_RUNTIME_PYTHON312_IMAGE=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+              "$RUNTIME_IMAGE_REF" >/dev/null; then
+              echo 'MODULE_RUNTIME_AUTH_PROBE_FAILED: check=container_start' >&2
+              return 1
+            fi
+            for attempt in $(seq 1 30); do
+              if ! probe_status="$(docker inspect -f '{{.State.Health.Status}}' "$probe_name")"; then
+                echo 'MODULE_RUNTIME_AUTH_PROBE_FAILED: check=health_inspect' >&2
+                docker logs "$probe_name" || true
+                docker rm -f "$probe_name" >/dev/null 2>&1 || true
+                return 1
+              fi
+              [ "$probe_status" = "healthy" ] && break
+              [ "$probe_status" = "unhealthy" ] && break
+              sleep 1
+            done
+            if [ "${probe_status:-missing}" != "healthy" ]; then
+              printf 'MODULE_RUNTIME_AUTH_PROBE_FAILED: check=health status=%s\n' "${probe_status:-missing}" >&2
+              docker logs "$probe_name" || true
+              docker rm -f "$probe_name" >/dev/null 2>&1 || true
+              return 1
+            fi
+            if ! docker exec "$probe_name" node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>process.exit(response.statusCode===401?0:1));request.end('{}')"; then
+              echo 'MODULE_RUNTIME_AUTH_PROBE_FAILED: check=unauthorized_boundary' >&2
+              docker logs "$probe_name" || true
+              docker rm -f "$probe_name" >/dev/null 2>&1 || true
+              return 1
+            fi
+            if ! docker rm -f "$probe_name" >/dev/null; then
+              echo 'MODULE_RUNTIME_AUTH_PROBE_FAILED: check=cleanup' >&2
+              return 1
+            fi
+            echo 'MODULE_RUNTIME_AUTH_PROBE_PASSED'
+          }
+
+          echo "Disk usage before deploy:"
+          df -h /
+          docker system df || true
+
+          module_runtime_configured=false
+          if docker compose config --services | grep -qx module-runtime; then
+            module_runtime_configured=true
+          fi
+
+          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ] && [ "$module_runtime_configured" != "true" ]; then
+            echo "Credentialed deployment requires a configured module-runtime service before traffic switching"
+            exit 1
+          fi
+
+          app_service=""
+          for candidate in comhub lobe; do
+            if docker compose config --services | grep -qx "$candidate"; then
+              app_service="$candidate"
+              break
+            fi
+          done
+          if [ -z "$app_service" ]; then
+            echo "Deployment requires a configured ComHub application service (comhub or lobe)"
+            exit 1
+          fi
+
+          previous_app_id="$(docker compose ps -q "$app_service")"
+          test -n "$previous_app_id" || application_verify_failed "preflight" container_missing
+          previous_app_image="$(docker inspect -f '{{.Config.Image}}' "$previous_app_id")"
+          previous_app_tag="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$previous_app_id" | sed -n 's/^COMHUB_IMAGE_TAG=//p')"
+          [[ "$previous_app_image" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] || application_verify_failed "preflight" previous_image_not_immutable
+          [[ "$previous_app_tag" =~ ^sha-[0-9a-f]{12}$ ]] || application_verify_failed "preflight" previous_image_tag_invalid
+          verify_application "$previous_app_image" "$previous_app_tag" "preflight"
+
+          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
+            previous_runtime_id="$(docker compose ps -q module-runtime)"
+            test -n "$previous_runtime_id" || runtime_verify_failed "preflight" container_missing
+            previous_runtime_image="$(docker inspect -f '{{.Config.Image}}' "$previous_runtime_id")"
+            test -n "$previous_runtime_image" || runtime_verify_failed "preflight" image_missing
+            [[ "$previous_runtime_image" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] || runtime_verify_failed "preflight" previous_image_not_immutable
+            verify_module_runtime "$previous_runtime_image" "preflight"
+
+            docker pull "$RUNTIME_IMAGE_REF"
+          fi
+
+          # EXIT covers shell termination before either rollout reaches its commit point.
+          trap rollback_deployment ERR EXIT
+
+          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
+            runtime_rollout_started=true
+            docker compose up -d --no-deps --wait module-runtime
+            verify_module_runtime "$RUNTIME_IMAGE_REF" "rollout"
+            verify_runtime_auth_boundary
+          else
+            echo "module-runtime rollout skipped; production mutation flags remain disabled"
+          fi
+
+          application_rollout_started=true
+          deploy_application "$IMAGE_REF" "$IMAGE_TAG"
+          verify_application "$IMAGE_REF" "$IMAGE_TAG" "rollout"
+
+          echo "Running post-deploy runtime smoke checks..."
+          while IFS=' ' read -r path expected; do
+            [ -n "$path" ] || continue
+            code="$(curl -sS -o /tmp/comhub-smoke.out -w '%{http_code}' "http://127.0.0.1:${COMHUB_PORT:-3213}${path}")"
+            echo "Smoke ${path}: HTTP ${code} (expected ${expected})"
+            if [ "$code" != "$expected" ]; then
+              echo "Smoke check failed for ${path}; response preview:"
+              head -c 500 /tmp/comhub-smoke.out || true
+              exit 1
+            fi
+          done <<'SMOKE_CHECKS'
+          / 302
+          /api/auth/get-session 200
+          /api/version 200
+          /favicon.ico 200
+          /images/brand/xuanguo-loading.svg 200
+          /signin 200
+          SMOKE_CHECKS
+
+          version_json="$(curl -fsS "http://127.0.0.1:${COMHUB_PORT:-3213}/api/version")"
+          echo "Version evidence: ${version_json}"
+          echo "${version_json}" | grep -q "${IMAGE_TAG}"
+
+          for flag in \
+            MODULE_APP_EXECUTION_ENABLED \
+            MODULE_APP_RUNTIME_INVOCATION_ENABLED \
+            MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED \
+            MODULE_APP_SCHEDULE_DISPATCH_ENABLED \
+            MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED \
+            MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED \
+            MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED; do
+            value="$(docker compose exec -T "$app_service" printenv "$flag" < /dev/null 2>/dev/null || true)"
+            if [ "${value}" = "true" ]; then
+              echo "Production control ${flag} must remain disabled until full gate evidence exists"
+              exit 1
+            fi
+          done
+
+          public_execution="$(docker compose exec -T "$app_service" printenv MODULE_APP_PUBLIC_EXECUTION_ENABLED < /dev/null 2>/dev/null || true)"
+          if [ "$public_execution" = "true" ]; then
+            echo "Public Module App launch must remain disabled until the remaining production gates pass"
+            exit 1
+          fi
+
+          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
+            verify_module_runtime "$RUNTIME_IMAGE_REF" "post-deploy"
+            runtime_rollout_committed=true
+          else
+            echo "module-runtime verification skipped; production mutation flags remain disabled"
+          fi
+          application_rollout_committed=true
+          trap - ERR EXIT
+
+          echo "Pruning unused Docker images after deploy..."
+          docker image prune -af || true
+
+          echo "Disk usage after deploy:"
+          df -h /
+          docker system df || true
+          REMOTE_DEPLOY

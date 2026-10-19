@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "status": "integration-in-progress",
+  "upstream": {
+    "repository": "https://github.com/lobehub/lobehub",
+    "tag": "v2.2.18",
+    "commit": "14dfc07b14eee1984e52c195df9319636d6b167b",
+    "tree": "3b228854b6072bac6ce0984bdb247ba26f0fbf2d",
+    "declaredPackageVersion": "2.2.17"
+  },
+  "businessOverlay": {
+    "repository": "https://github.com/maheshenga/comhub",
+    "ref": "main",
+    "commit": "09d4aec1533f541f8e8568f0e4fd6ee069ea2cb2",
+    "tree": "f5e258086c0163132ce2923cfa5db441f92eeca8",
+    "officialStableReleaseVerified": false,
+    "integrationStatus": "physical-base-adopted; LobeHub v2.2.18 parity audited"
+  },
+  "fabSource": {
+    "repository": "https://github.com/CT-Claw/fab.gdibao.com",
+    "commit": "39ba9e234e804bc229966262c85cac59fb326e5a",
+    "tree": "2f09a133d9e268a6685b4575e4cfca911e316229",
+    "initialCommit": "efc21d64d3b0d81557ca1347e16f667e398a18c4",
+    "uncommittedMarketChanges": "installable assistant/skill/MCP patch imported at a3d51939; two unrelated HeteroSession changes excluded",
+    "integrationStatus": "639 clean paths and 84 locale catalogs integrated; legacy conflict registry remains under review"
+  },
+  "toolchain": {
+    "packageManager": "pnpm@12.4.1",
+    "rootLockfileStatus": "pending-final-workspace-resolution",
+    "rootLockfileSha256": null,
+    "nodeVersion": null,
+    "minimumBuildMemoryGiB": 16
+  },
+  "validation": {
+    "sourceTreeAudit": "passed",
+    "journalByteComparison": "185 existing records unchanged; 37 additional ComHub records",
+    "databaseUpgradeRehearsal": "not-run",
+    "applicationTests": "source audit 3/3 and MCP normalization 4/4 passed; dependency-backed TypeScript tests not run",
+    "build": "not-authorized-for-a-specific-command",
+    "temporaryContainer": "not-created",
+    "productionDeployment": "requires-user-acceptance-and-separate-approval"
+  },
+  "artifact": {
+    "sourceCommit": null,
+    "patchsetSha256": null,
+    "imageDigest": null
+  }
+}

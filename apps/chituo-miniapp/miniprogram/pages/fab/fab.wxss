@@ -1,0 +1,53 @@
+.error-page {
+  box-sizing: border-box;
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  padding: 88rpx 52rpx;
+  flex-direction: column;
+  justify-content: center;
+  background: #07111f;
+  text-align: center;
+}
+
+.logo {
+  width: 128rpx;
+  height: 128rpx;
+  margin-bottom: 42rpx;
+  border-radius: 28rpx;
+}
+
+.title {
+  color: #ffffff;
+  font-size: 40rpx;
+  font-weight: 700;
+}
+
+.message {
+  margin: 24rpx 0 52rpx;
+  color: #a9bfce;
+  font-size: 28rpx;
+  line-height: 1.7;
+}
+
+.primary,
+.secondary {
+  width: 100%;
+  height: 88rpx;
+  margin-top: 20rpx;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  line-height: 88rpx;
+}
+
+.primary {
+  color: #041218;
+  background: #67d7ff;
+  font-weight: 700;
+}
+
+.secondary {
+  color: #d9e9f2;
+  border: 1rpx solid #35566c;
+  background: #102536;
+}

@@ -1,0 +1,8 @@
+# ComHub maintainer ownership
+* @maheshenga
+
+# Release, infrastructure, and data-boundary changes
+/.github/ @maheshenga
+/docker-compose/deploy/ @maheshenga
+/packages/database/migrations/ @maheshenga
+/scripts/comhub-upstream-sync/ @maheshenga

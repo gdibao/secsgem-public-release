@@ -1,0 +1,92 @@
+.page-shell {
+  box-sizing: border-box;
+  display: flex;
+  min-height: 100vh;
+  padding: 96rpx 48rpx 56rpx;
+  flex-direction: column;
+  background: linear-gradient(180deg, #07111f 0%, #0b2132 58%, #07111f 100%);
+}
+
+.brand-panel {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  flex-direction: column;
+}
+
+.logo {
+  width: 152rpx;
+  height: 152rpx;
+  margin-bottom: 48rpx;
+  border-radius: 32rpx;
+  box-shadow: 0 16rpx 56rpx rgba(18, 185, 129, 0.2);
+}
+
+.eyebrow {
+  margin-bottom: 18rpx;
+  color: #67d7ff;
+  font-size: 25rpx;
+  font-weight: 600;
+}
+
+.title {
+  color: #ffffff;
+  font-size: 58rpx;
+  font-weight: 750;
+}
+
+.summary {
+  max-width: 610rpx;
+  margin-top: 26rpx;
+  color: #b8ccdb;
+  font-size: 30rpx;
+  line-height: 1.7;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24rpx;
+  padding: 24rpx 28rpx;
+  border: 1rpx solid #284358;
+  border-radius: 12rpx;
+  color: #c7d9e5;
+  background: #0b1c2a;
+  font-size: 26rpx;
+}
+
+.status-dot {
+  width: 14rpx;
+  height: 14rpx;
+  margin-right: 18rpx;
+  border-radius: 50%;
+  background: #12b981;
+}
+
+.offline .status-dot {
+  background: #ef6b73;
+}
+
+.primary {
+  width: 100%;
+  height: 92rpx;
+  border-radius: 12rpx;
+  color: #041218;
+  background: #67d7ff;
+  font-size: 31rpx;
+  font-weight: 700;
+  line-height: 92rpx;
+}
+
+.primary[disabled] {
+  color: #7d909c;
+  background: #243744;
+}
+
+.notice {
+  margin-top: 24rpx;
+  color: #8197a6;
+  font-size: 23rpx;
+  line-height: 1.6;
+  text-align: center;
+}

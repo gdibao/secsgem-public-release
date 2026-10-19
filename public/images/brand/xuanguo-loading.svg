@@ -1,0 +1,59 @@
+<svg aria-labelledby="title" height="40" role="img" viewBox="0 0 960 160" width="240" xmlns="http://www.w3.org/2000/svg">
+  <title id="title">XUANGUO</title>
+  <style>
+    svg {
+      color: #1f1f1f;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      svg {
+        color: #f0f0f0;
+      }
+    }
+
+    @keyframes loading-draw {
+      0% {
+        stroke-dashoffset: 1000;
+      }
+
+      100% {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    @keyframes loading-fill {
+      30% {
+        fill-opacity: 0.05;
+      }
+
+      100% {
+        fill-opacity: 1;
+      }
+    }
+
+    .wordmark {
+      animation:
+        loading-draw 2s cubic-bezier(0.4, 0, 0.2, 1) infinite,
+        loading-fill 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      fill: currentcolor;
+      fill-opacity: 0;
+      paint-order: stroke fill;
+      stroke: currentcolor;
+      stroke-dasharray: 1000;
+      stroke-dashoffset: 1000;
+      stroke-linejoin: round;
+      stroke-width: 4;
+    }
+  </style>
+  <text
+    class="wordmark"
+    dominant-baseline="middle"
+    font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="112"
+    font-weight="800"
+    letter-spacing="10"
+    text-anchor="middle"
+    x="480"
+    y="82"
+  >XUANGUO</text>
+</svg>

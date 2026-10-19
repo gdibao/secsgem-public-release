@@ -1,0 +1,124 @@
+---
+description: AI development governance rules for the ComHub LobeHub-derived project
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# ComHub AI Development Governance
+
+These rules are mandatory for AI-assisted development in this repository.
+They complement `AGENTS.md` and apply to code, configuration, database,
+deployment, UI, and documentation changes.
+
+## Read Before Changing Code
+
+Before modifying any business code, routing, configuration, database schema,
+deployment file, or UI behavior, read:
+
+- `docs/FEATURE_REGISTRY.md`
+- `docs/PROJECT_AUDIT.md`
+- `docs/REFACTOR_PLAN.md`
+
+Use these documents to identify the feature owner, current status, dependencies,
+risk level, missing tests, and recommended refactor sequence.
+
+## New Features
+
+When adding a new feature, update:
+
+- `docs/FEATURE_REGISTRY.md`
+- `docs/CHANGELOG_INTERNAL.md`
+
+If `docs/CHANGELOG_INTERNAL.md` does not exist, create it in the same change.
+
+The registry entry must include status, explanation, frontend entry, core
+components, API/server actions, database dependencies, config keys, environment
+variables, external services, related files, maintenance risk, refactor
+recommendation, test gap, and notes.
+
+## Existing Feature Changes
+
+When modifying an existing feature, document the impact scope:
+
+- Pages
+- Components
+- API / Server Actions
+- Database
+- Configuration keys
+- Environment variables
+- Docker deployment
+
+If an item is not affected, state that explicitly in the implementation notes or
+final response.
+
+## Feature Deletion
+
+Do not delete a feature directly.
+
+First:
+
+- Mark the feature as `deprecated` in `docs/FEATURE_REGISTRY.md`.
+- Search all references.
+- Check page routes, component imports, API routers, server actions, database
+  tables, migrations, config keys, environment variables, Docker files, and
+  deployment scripts.
+- Confirm there are no active dependencies.
+
+Only delete code after the above is complete, and keep the deletion small and
+reversible.
+
+## Refactor Rules
+
+- No unplanned large-scale refactors.
+- Follow `docs/REFACTOR_PLAN.md`.
+- Split refactors into small reversible steps.
+- Core flows require tests before refactoring.
+- Prefer adapters, formatters, compatibility wrappers, or feature flags before
+  removing old behavior.
+
+Core flows include admin settings, runtime config, AI providers/models, pricing,
+plans, credits, billing, usage, referral, branding, loading/favicons, default
+agents, desktop update, deployment, notifications, memory, Composio, community,
+MCP, auth, user defaults, and permission-sensitive admin actions.
+
+## AI Configuration
+
+Never hardcode AI credentials or model routing values.
+
+Do not hardcode:
+
+- AI API keys
+- AI base URLs
+- AI model names
+
+AI runtime configuration must come from:
+
+- `AI_API_KEY`
+- `AI_BASE_URL`
+- `AI_MODEL_NAME`
+
+Provider-specific compatibility variables may only be used through the approved
+settings/config layer and must be documented in `docs/FEATURE_REGISTRY.md`.
+
+## Docker Deployment
+
+- Docker deployment must use Bind Mounts.
+- Do not introduce Docker Named Volumes.
+- Deployment changes must describe host paths, container paths, data impact,
+  migration needs, and rollback steps.
+
+## Completion Checklist
+
+Before claiming completion, verify:
+
+- Only intended files changed.
+- Added features updated `docs/FEATURE_REGISTRY.md`.
+- Added features updated `docs/CHANGELOG_INTERNAL.md`.
+- Existing feature changes document page/component/API/database/config/env/Docker
+  impact.
+- Deleted features were marked deprecated and reference-checked first.
+- No AI key, base URL, or model name was hardcoded.
+- Docker changes use Bind Mounts only.
+- Core-flow refactors have tests or documented smoke checks.
+- The change is reversible.

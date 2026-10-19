@@ -1,0 +1,18 @@
+{
+  "checkedDateUTC": "2026-09-20",
+  "destination": "https://github.com/CT-Claw/fab",
+  "forkHead": "1e63fcd11cf4b2043f01cfa13337dbb0094c4f8b",
+  "upstreamHead": "1e63fcd11cf4b2043f01cfa13337dbb0094c4f8b",
+  "tree": "71000b1fb8c12e22353186dae7aa5df96d794c0b",
+  "committerDateUTC": "2026-08-21T20:24:07Z",
+  "evidenceURLs": [
+    "https://api.github.com/repos/CT-Claw/fab/commits/HEAD",
+    "https://api.github.com/repos/maheshenga/comhub/commits/HEAD"
+  ],
+  "sameCommitAndTree": true,
+  "reusePolicy": "Reuse recorded upstream image only for this exact fork source. Recheck before rollout. Later source differences require a fork build or explicit source review, never reset user changes.",
+  "migrationJournalEntries": 185,
+  "migrationUniqueTags": 185,
+  "migrationTimestampRegressions": 2,
+  "migrationVerification": "Compare all SQL hashes and timestamps with database ledger, not only latest row or file numbering."
+}

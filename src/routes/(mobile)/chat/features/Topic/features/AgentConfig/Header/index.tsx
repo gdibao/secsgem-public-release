@@ -1,0 +1,40 @@
+'use client';
+
+import { Flexbox, Text } from '@lobehub/ui';
+import { memo } from 'react';
+
+import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
+import { useMobileConfig } from '@/features/MobileWorkspace/useMobileConfig';
+import { useAgentStore } from '@/store/agent';
+import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
+
+import Avatar from './Avatar';
+
+const HeaderInfo = memo(() => {
+  const isInbox = useAgentStore(builtinAgentSelectors.isInboxAgent);
+  const title = useAgentStore(agentSelectors.currentAgentTitle);
+  const { config } = useMobileConfig();
+
+  const displayTitle = isInbox
+    ? config.brand.displayName || DEFAULT_RUNTIME_BRAND.name
+    : title;
+
+  return (
+    <Flexbox
+      horizontal
+      align={'center'}
+      flex={1}
+      gap={8}
+      style={{
+        overflow: 'hidden',
+      }}
+    >
+      <Avatar />
+      <Text ellipsis weight={500}>
+        {displayTitle}
+      </Text>
+    </Flexbox>
+  );
+});
+
+export default HeaderInfo;

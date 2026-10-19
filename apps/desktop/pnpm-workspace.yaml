@@ -1,0 +1,86 @@
+packages:
+  - '../cli'
+  - '../../packages/agent-gateway-client'
+  - '../../packages/agent-tracing'
+  - '../../packages/chat-adapter-imessage'
+  - '../../packages/heterogeneous-agents'
+  - '../../packages/html-artifact'
+  - '../../packages/const'
+  - '../../packages/eval-rubric'
+  - '../../packages/electron-server-ipc'
+  - '../../packages/electron-client-ipc'
+  - '../../packages/electron-mac-notifications'
+  - '../../packages/napi-loader'
+  - '../../packages/file-loaders'
+  - '../../packages/html-artifact'
+  - '../../packages/desktop-bridge'
+  - '../../packages/device-control'
+  - '../../packages/device-sandbox'
+  - '../../packages/device-gateway-client'
+  - '../../packages/device-identity'
+  - '../../packages/local-file-shell'
+  - '../../packages/tool-runtime'
+  - '../../packages/prompts'
+  - '../../packages/ssrf-safe-fetch'
+  - 'stubs/business-const'
+  - '../../packages/types'
+  - '../../packages/model-bank'
+  - '../../packages/module-app-build'
+  - '../../packages/utils'
+  - '.'
+
+lockfile: true
+shamefullyHoist: true
+ignoreWorkspaceRootCheck: true
+
+publicHoistPattern:
+  - '*@umijs/lint*'
+  - '*unicorn*'
+  - '*changelog*'
+  - '*commitlint*'
+  - '*eslint*'
+  - '*postcss*'
+  - '*prettier*'
+  - '*remark*'
+  - '*semantic-release*'
+  - '*stylelint*'
+  - '@auth/core'
+  - 'pdfjs-dist'
+
+allowBuilds:
+  '@sentry/cli': true
+  electron: true
+  electron-builder: true
+  electron-winstaller: false
+  esbuild: false
+  get-windows: false
+  modern-ahocorasick: false
+  node-mac-permissions: true
+  protobufjs: false
+
+overrides:
+  '@electron/get@^3.0.0': 3.1.0
+  node-gyp: ^12.4.0
+  react: 19.2.7
+  react-dom: 19.2.7
+  vitest: 5.0.0
+  'zod@^4': 4.5.4
+minimumReleaseAgeExclude:
+  - '@auv-js/api-client@0.0.16'
+  - '@auv-js/cli-darwin-arm64@0.0.16'
+  - '@auv-js/cli-darwin-x64@0.0.16'
+  - '@auv-js/cli-linux-arm64-gnu@0.0.16'
+  - '@auv-js/cli-linux-x64-gnu@0.0.16'
+  - '@auv-js/cli-win32-x64-msvc@0.0.16'
+  - '@auv-js/cli@0.0.16'
+  - '@auv-js/sdk@0.0.16'
+
+# Linux builds the Windows installer by design. Materialize the target AUV
+# package so electron-builder never copies the build host binary into the EXE.
+supportedArchitectures:
+  cpu:
+    - current
+    - x64
+  os:
+    - current
+    - win32

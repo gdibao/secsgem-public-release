@@ -1,0 +1,10 @@
+{
+  "name": "gdibao-site-independent-qa",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Isolated browser validation; does not modify website source",
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

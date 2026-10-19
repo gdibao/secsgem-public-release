@@ -1,0 +1,51 @@
+/* Keep the existing token names so the new palette applies without layout changes. */
+:root {
+  --ink: #20262c;
+  --muted: #58636e;
+  --green: #086da8;
+  --green-dark: #075786;
+  --line: #dce2e7;
+  --soft: #f4f6f8;
+  --mint: #e9f5fb;
+}
+.brand-mark { background: transparent; }
+.brand-mark img { width: 36px; height: 36px; filter: none; border-radius: 5px; }
+.hero { background: #edf1f4; }
+.hero:after { background: linear-gradient(90deg, rgba(246,249,252,.96) 0%, rgba(246,249,252,.85) 32%, rgba(246,249,252,.1) 65%, transparent 100%); }
+.hero-copy { color: #384650; }
+.hero-detail { color: #445564; }
+.hero-caption { color: #344958; }
+.secondary { border-color: #acbecb; }
+.index { color: #64798a; }
+.feature-icon,
+.text-link img,
+.intro-inner > a img,
+.boundary-title > img,
+.contact-email .icon-button img { filter: brightness(0) saturate(100%) invert(30%) sepia(97%) saturate(1283%) hue-rotate(169deg) brightness(82%) contrast(96%); }
+.tabs { border-bottom-color: #ccd8e1; }
+.use-cases > div { border-bottom-color: #d6dfe7; }
+.server-figure { background: #f1f3f5; }
+.boundary-diagram { border-color: #a7c9de; background: #fbfdfe; }
+.boundary-gate { color: #71623f; border-top-color: #c3cbd1; }
+.delivery-band { background: #1b242d; }
+.delivery-band .eyebrow { color: #79d8f4; }
+.delivery-band .section-heading > p { color: #c4ced7; }
+.delivery-steps { border-top-color: #495966; }
+.delivery-steps li + li { border-left-color: #495966; }
+.delivery-steps span { color: #8ed7f2; }
+.delivery-steps p { color: #c4ced7; }
+.delivery-steps small { color: #9bcde3; }
+.risk-grid article { border-top-color: #b8cad7; }
+.faqs details { border-bottom-color: #d1dbe3; }
+select { border-color: #c5d1db; background: #fbfcfd; }
+textarea { background: #f6f9fc; border-color: #c5d1db; }
+.article-body p,
+.case dd,
+.article-body ul { color: #485965; }
+.home-experience .experience-widget { border-color: #075786; background: #086da8; box-shadow: 0 4px 16px #20262c26; }
+.home-experience .experience-grip,
+.home-experience .experience-link:hover { background: #075786; }
+@media (max-width: 760px) {
+  .hero:after { background: linear-gradient(90deg, rgba(247,250,253,.93), rgba(247,250,253,.72) 54%, rgba(247,250,253,.2)); }
+  .delivery-steps li:nth-child(-n+2) { border-bottom-color: #495966; }
+}

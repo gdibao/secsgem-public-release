@@ -1,0 +1,388 @@
+name: Chituo Desktop and CLI Release
+run-name: Chituo AI ${{ inputs.version || github.ref_name }}
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version without the v prefix'
+        required: true
+        type: string
+      release_notes:
+        description: 'Optional additional Chinese release notes'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: chituo-release-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+  DESKTOP_BUILD_PROFILE_PATH: ${{ github.workspace }}/apps/desktop/branding/chituo/desktop-build-profile.json
+  ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+  ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+  NODEJS_VERSION: '24.18.0'
+  NODE_OPTIONS: --max-old-space-size=16384
+  OFFICIAL_CLOUD_SERVER: https://fab.secsgem.com.cn
+  UPDATE_SERVER_URL: ''
+  npm_config_registry: https://registry.npmmirror.com
+
+jobs:
+  prepare:
+    name: Validate immutable release source
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate version and tag
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = 'push' ]; then
+            tag="$REF_NAME"
+            VERSION="${tag#v}"
+          else
+            VERSION="$INPUT_VERSION"
+            tag="v${VERSION}"
+          fi
+          semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
+          if ! [[ "$VERSION" =~ $semver ]]; then
+            echo 'Release version must be valid SemVer.' >&2
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/tags/$tag" ]; then
+            echo "Dispatch this workflow from immutable tag $tag, got $GITHUB_REF." >&2
+            exit 1
+          fi
+          test "$(git rev-list -n 1 "$tag")" = "$GITHUB_SHA"
+          test "$(sha256sum apps/desktop/branding/chituo/logo.png | cut -d' ' -f1)" = \
+            '527f73df2df1515be0f9b5b13cb87ec2dfef333fc7b1e44eedb2c2899461a44d'
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Reject an existing GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refusing to overwrite it." >&2
+            exit 1
+          fi
+
+  build-desktop:
+    name: Build ${{ matrix.label }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: macos-arm64
+            label: macOS Apple Silicon
+            os: macos-15
+            command: package:mac
+            expected: dmg,zip
+          - id: macos-x64
+            label: macOS Intel
+            os: macos-15-intel
+            command: package:mac
+            expected: dmg,zip
+          - id: windows-x64
+            label: Windows x64
+            os: windows-latest
+            command: package:win:release
+            expected: exe
+          - id: linux-x64
+            label: Linux x86_64
+            os: ubuntu-latest
+            command: package:linux
+            expected: AppImage,deb,rpm,snap,tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v6
+
+      - name: Setup desktop build
+        uses: ./.github/actions/desktop-build-setup
+        with:
+          node-version: ${{ env.NODEJS_VERSION }}
+          prefer-china-mirrors: true
+
+      - name: Set immutable package versions
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs');
+          for (const [file, name] of [
+            ['apps/desktop/package.json', 'lobehub-desktop'],
+            ['apps/cli/package.json'],
+          ]) {
+            const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+            pkg.version = process.env.VERSION;
+            if (name) pkg.name = name;
+            fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`);
+          }
+          NODE
+
+      - name: Verify build profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/desktop
+          node ../../node_modules/vitest/vitest.mjs run desktop-build-profile.test.ts \
+            --config vitest.config.mts
+
+      - name: Build desktop package
+        shell: bash
+        env:
+          BUILD_COMMAND: ${{ matrix.command }}
+        run: |
+          set -euo pipefail
+          npm run "$BUILD_COMMAND" --prefix ./apps/desktop
+
+      - name: Validate desktop artifacts
+        shell: bash
+        env:
+          EXPECTED: ${{ matrix.expected }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          IFS=',' read -ra extensions <<< "$EXPECTED"
+          for extension in "${extensions[@]}"; do
+            matches=(apps/desktop/release/*."$extension")
+            if [ "${#matches[@]}" -eq 0 ]; then
+              echo "Missing .$extension release artifact." >&2
+              exit 1
+            fi
+          done
+          find apps/desktop/release -maxdepth 1 -type f \
+            \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' \
+               -o -name '*.deb' -o -name '*.rpm' -o -name '*.snap' -o -name '*.tar.gz' \) \
+            -size +0 -print
+
+      - name: Validate unpacked application identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/desktop/scripts/validatePackagedIdentity.mjs apps/desktop/release
+
+      - name: Extract and validate final Windows installer identity
+        if: matrix.id == 'windows-x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v 7z >/dev/null
+          shopt -s nullglob
+          setup_exes=(apps/desktop/release/*-setup.exe)
+          portable_exes=(apps/desktop/release/*-x64-portable.exe)
+          test "${#setup_exes[@]}" -eq 1
+          test "${#portable_exes[@]}" -eq 1
+
+          install_dir="$RUNNER_TEMP/chituo-setup-installed"
+          mkdir -p "$install_dir"
+          "${setup_exes[0]}" /S "/D=$(cygpath -w "$install_dir")"
+          node apps/desktop/scripts/validatePackagedIdentity.mjs "$install_dir"
+          node apps/desktop/scripts/validatePackagedRuntime.mjs "$install_dir" win32 x64
+
+          portable_extract="$RUNNER_TEMP/chituo-portable-extract"
+          portable_app="$RUNNER_TEMP/chituo-portable-app"
+          mkdir -p "$portable_extract" "$portable_app"
+          7z x -y "${portable_exes[0]}" "-o$portable_extract" >/dev/null
+          payload="$(find "$portable_extract" -type f -name 'app-*.7z' -print -quit)"
+          test -n "$payload"
+          7z x -y "$payload" "-o$portable_app" >/dev/null
+          node apps/desktop/scripts/validatePackagedIdentity.mjs "$portable_app"
+
+          portable_marker="$RUNNER_TEMP/portable-runtime-verified.txt"
+          portable_temp="$RUNNER_TEMP/chituo-portable-live"
+          mkdir -p "$portable_temp"
+          TEMP="$(cygpath -w "$portable_temp")" TMP="$(cygpath -w "$portable_temp")" \
+            "${portable_exes[0]}" >/dev/null 2>&1 &
+          portable_pid=$!
+          trap 'taskkill.exe //PID "$portable_pid" //T //F >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 120); do
+            binding="$(find "$portable_temp" -type f \
+              -path '*/resources/app.asar.unpacked/node_modules/@lydell/node-pty-win32-x64/prebuilds/win32-x64/conpty.node' \
+              -size +0c -print -quit)"
+            if [ -n "$binding" ]; then
+              stat -c '%s' "$binding" > "$portable_marker"
+              break
+            fi
+            sleep 1
+          done
+          taskkill.exe //PID "$portable_pid" //T //F >/dev/null 2>&1 || true
+          trap - EXIT
+          test -s "$portable_marker"
+
+      - name: Extract and validate final macOS archive identity
+        if: startsWith(matrix.id, 'macos-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$(find apps/desktop/release -maxdepth 1 -name '*.zip' -type f -print -quit)"
+          test -n "$archive"
+          mkdir -p "$RUNNER_TEMP/chituo-macos"
+          ditto -x -k "$archive" "$RUNNER_TEMP/chituo-macos"
+          node apps/desktop/scripts/validatePackagedIdentity.mjs "$RUNNER_TEMP/chituo-macos"
+
+      - name: Extract and validate final Linux archive identity
+        if: matrix.id == 'linux-x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$(find apps/desktop/release -maxdepth 1 -name '*.tar.gz' -type f -print -quit)"
+          test -n "$archive"
+          mkdir -p "$RUNNER_TEMP/chituo-linux"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/chituo-linux"
+          node apps/desktop/scripts/validatePackagedIdentity.mjs "$RUNNER_TEMP/chituo-linux"
+          node apps/desktop/scripts/validatePackagedRuntime.mjs \
+            "$RUNNER_TEMP/chituo-linux" linux x64
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-${{ matrix.id }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/release/*.rpm
+            apps/desktop/release/*.snap
+            apps/desktop/release/*.tar.gz
+
+  build-cli:
+    name: Build portable CLI package
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v6
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: ${{ env.NODEJS_VERSION }}
+          package-manager-cache: false
+
+      - name: Install dependencies
+        shell: bash
+        run: pnpm install --node-linker=hoisted
+
+      - name: Build and verify CLI
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const file = 'apps/cli/package.json';
+          const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+          pkg.version = process.env.VERSION;
+          fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`);
+          NODE
+          npm run build --prefix ./apps/cli
+          node apps/cli/dist/index.js --help | tee /tmp/chituo-cli-help.txt
+          node apps/cli/dist/index.js --version | tee /tmp/chituo-cli-version.txt
+          grep -F '驰拓 AI 助手' /tmp/chituo-cli-help.txt
+          grep -Fx "$VERSION" /tmp/chituo-cli-version.txt
+          grep -F 'https://fab.secsgem.com.cn' apps/cli/dist/index.js >/dev/null
+          mkdir -p release-cli
+          (cd apps/cli && npm pack --ignore-scripts --pack-destination ../../release-cli)
+          test "$(find release-cli -maxdepth 1 -name '*.tgz' -type f | wc -l)" -eq 1
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: cli
+          if-no-files-found: error
+          retention-days: 7
+          path: release-cli/*.tgz
+
+  release:
+    name: Publish immutable GitHub prerelease
+    needs: [prepare, build-desktop, build-cli]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v6
+        with:
+          merge-multiple: true
+          path: release-assets
+
+      - name: Verify and hash release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -ge 10
+          if find release-assets -maxdepth 1 -type f -printf '%f\n' | grep -Eiq 'lobehub|comhub|qingyou'; then
+            echo 'An artifact still carries an upstream product name.' >&2
+            exit 1
+          fi
+          (cd release-assets && sha256sum * | sort -k2 > SHA256SUMS)
+          find release-assets -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+
+      - name: Write release notes
+        shell: bash
+        env:
+          EXTRA_NOTES: ${{ inputs.release_notes }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<EOF
+          # 驰拓 AI 助手 ${VERSION}
+
+          本预发行版由私有仓库的唯一 tag 构建，默认连接 https://fab.secsgem.com.cn。
+
+          - 桌面端：macOS Apple Silicon、macOS Intel、Windows x64、Linux x86_64。
+          - CLI：复用上游现有 CLI 能力，提供 chituo、fab 及兼容命令；不包含自研 Computer Use。
+          - 内容：桌面渲染器包含当前源码中的 195 个本地助手目录；模型、额度、认证和实际可用能力由 Fab 服务端控制。
+          - 更新：本版本未绑定旧 S3 或上游自动更新服务，请从本 Release 手动更新。
+
+          注意：macOS 和 Windows 产物未使用商业代码签名或 Apple 公证，系统可能显示安全提示。本次是预发行交付，不表示已完成所有平台实机登录、群组推理、MCP、技能和知识库能力验收。
+          EOF
+          if [ -n "$EXTRA_NOTES" ]; then
+            printf '\n## 补充说明\n\n%s\n' "$EXTRA_NOTES" >> release-notes.md
+          fi
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "驰拓 AI 助手 ${VERSION}" \
+            --notes-file release-notes.md \
+            --prerelease \
+            --verify-tag

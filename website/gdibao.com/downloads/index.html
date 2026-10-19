@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>客户端下载 | 驰拓AI助手</title>
+    <meta
+      name="description"
+      content="下载驰拓AI助手 Windows、Linux 与命令行预发布客户端，并核对 SHA256。"
+    />
+    <meta name="theme-color" content="#086da8" />
+    <link rel="canonical" href="https://www.gdibao.com/downloads/" />
+    <script>
+      (() => {
+        try {
+          const m = localStorage.getItem("chituo-theme") || "system";
+          const e =
+            m === "system"
+              ? matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+              : m;
+          document.documentElement.dataset.themeMode = m;
+          document.documentElement.dataset.theme = e;
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <link
+      rel="icon"
+      href="/assets/brand/chitu-logo-527f73df.png"
+      type="image/png"
+    />
+    <link rel="stylesheet" href="/assets/site.css" />
+    <link rel="stylesheet" href="/assets/brand-20260922-v1.css" />
+    <link rel="stylesheet" href="/assets/theme.css?v=20260924.2" />
+    <script src="/assets/site.js" defer></script>
+    <script src="/assets/theme.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到正文</a>
+    <header class="site-header">
+      <div class="wrap nav-row">
+        <a class="brand" href="/" aria-label="驰拓AI助手 首页"
+          ><span class="brand-mark"
+            ><img
+              src="/assets/brand/chitu-logo-527f73df.png"
+              alt=""
+              width="36"
+              height="36" /></span
+          ><span>驰拓<span class="brand-light">AI助手</span></span></a
+        >
+        <div class="theme-switcher" role="group" aria-label="页面主题">
+          <button
+            type="button"
+            data-theme-value="light"
+            aria-label="使用浅色主题"
+            title="浅色主题"
+          >
+            <img
+              src="/assets/icons/sun.svg"
+              alt=""
+              width="16"
+              height="16"
+            /></button
+          ><button
+            type="button"
+            data-theme-value="dark"
+            aria-label="使用深色主题"
+            title="深色主题"
+          >
+            <img
+              src="/assets/icons/moon.svg"
+              alt=""
+              width="16"
+              height="16"
+            /></button
+          ><button
+            type="button"
+            data-theme-value="system"
+            aria-label="跟随系统主题"
+            title="跟随系统"
+          >
+            <img
+              src="/assets/icons/monitor.svg"
+              alt=""
+              width="16"
+              height="16"
+            />
+          </button>
+        </div>
+        <button
+          class="icon-button menu-toggle"
+          aria-label="打开导航"
+          aria-expanded="false"
+          aria-controls="navigation"
+        >
+          <img src="/assets/icons/menu.svg" alt="" width="24" height="24" />
+        </button>
+        <nav id="navigation" aria-label="主导航">
+          <a href="/">首页</a><a href="/industry-resources/">行业资源</a
+          ><a href="/downloads/" aria-current="page">客户端下载</a
+          ><a href="/insights/ai-data-boundaries/">风险预警</a
+          ><a class="nav-contact" href="/#contact"
+            >规划部署
+            <img
+              src="/assets/icons/arrow-up-right.svg"
+              alt=""
+              width="17"
+              height="17"
+          /></a>
+        </nav>
+      </div>
+    </header>
+    <main id="main">
+      <section class="compact-hero">
+        <div class="wrap">
+          <p class="eyebrow">驰拓 AI 助手 · 客户端</p>
+          <h1>选择适合工程环境的客户端。</h1>
+          <p class="lede">
+            当前公开的是 2.2.13-chituo.7 预发布版本。下载后请先核对
+            SHA256；各平台签名与实机验收状态以本页为准。
+          </p>
+          <div class="compact-meta">
+            <span>版本：2.2.13-chituo.7</span><span>更新：2026-09-24</span
+            ><span>默认连接：fab.gdibao.com</span>
+          </div>
+        </div>
+      </section>
+      <section class="section wrap">
+        <div class="download-grid">
+          <article class="download-card">
+            <h2>Windows</h2>
+            <p class="version">x64 · EXE · 预发布</p>
+            <p>
+              适用于 64 位 Windows
+              的安装程序。当前未进行商业代码签名，系统可能显示未知发布者提示。
+            </p>
+            <ul>
+              <li>文件约 215 MB</li>
+              <li>已修复 Windows 平台原生依赖打包错误</li>
+              <li>仍需更多 Windows 环境实机回归</li>
+            </ul>
+            <a
+              class="button primary"
+              href="/downloads/v2.2.13-chituo.7/Chituo-AI-Assistant-2.2.13-chituo.7-setup.exe"
+              >下载 Windows EXE
+              <img
+                src="/assets/icons/download.svg"
+                alt=""
+                width="18"
+                height="18"
+            /></a>
+          </article>
+          <article class="download-card">
+            <h2>Linux</h2>
+            <p class="version">x86_64 / amd64 · 预发布</p>
+            <p>
+              按发行版选择安装格式；AppImage 与 tar.gz
+              适合不希望写入系统包管理器的环境。
+            </p>
+            <ul>
+              <li>AppImage / DEB / RPM / Snap</li>
+              <li>tar.gz 便携包</li>
+              <li>当前未提供发行版仓库签名</li>
+            </ul>
+            <div class="download-links">
+              <a
+                class="button primary"
+                href="/downloads/v2.2.13-chituo.7/Chituo-AI-Assistant-2.2.13-chituo.7-x86_64.AppImage"
+                >AppImage</a
+              ><a
+                class="button secondary"
+                href="/downloads/v2.2.13-chituo.7/Chituo-AI-Assistant-2.2.13-chituo.7-amd64.deb"
+                >DEB</a
+              ><a
+                class="button secondary"
+                href="/downloads/v2.2.13-chituo.7/Chituo-AI-Assistant-2.2.13-chituo.7-x86_64.rpm"
+                >RPM</a
+              ><a
+                class="button secondary"
+                href="/downloads/v2.2.13-chituo.7/Chituo-AI-Assistant-2.2.13-chituo.7-amd64.snap"
+                >Snap</a
+              ><a
+                class="button secondary"
+                href="/downloads/v2.2.13-chituo.7/Chituo-AI-Assistant-2.2.13-chituo.7-x64.tar.gz"
+                >tar.gz</a
+              >
+            </div>
+          </article>
+          <article class="download-card">
+            <h2>命令行 CLI</h2>
+            <p class="version">Node.js 包 · 预发布</p>
+            <p>
+              用于终端工作流的独立包，不是桌面界面，也不等同于可以控制任意操作系统
+              GUI。
+            </p>
+            <ul>
+              <li>文件约 2.1 MB</li>
+              <li>连接自部署服务需按实际环境配置</li>
+              <li>安装前应由管理员审查包内容</li>
+            </ul>
+            <a
+              class="button primary"
+              href="/downloads/v2.2.13-chituo.7/ct-claw-fab-cli-2.2.13-chituo.7.tgz"
+              >下载 CLI 包
+              <img
+                src="/assets/icons/download.svg"
+                alt=""
+                width="18"
+                height="18"
+            /></a>
+          </article>
+          <article class="download-card">
+            <h2>macOS</h2>
+            <p class="version">Apple Silicon / Intel · 待发布</p>
+            <p>
+              修正版尚未完成构建、签名、公证与实机验收。为避免继续分发已知登录地址错误的旧包，本页暂不提供下载。
+            </p>
+            <ul>
+              <li>不提供已知缺陷旧资产</li>
+              <li>发布后将区分 Apple Silicon 与 Intel</li>
+              <li>状态会在本页更新</li>
+            </ul>
+            <span class="button secondary" aria-disabled="true">暂未发布</span>
+          </article>
+        </div>
+        <p class="download-notice">
+          预发布软件仅供测试。安装前请备份重要资料，并核对文件完整性。Windows、Linux
+          包当前均未完成商业签名；这不会自动证明文件不安全，也不能替代哈希核验和环境内测试。
+        </p>
+        <p class="section-note">
+          <a class="checksum-link" href="/downloads/v2.2.13-chituo.7/SHA256SUMS"
+            >查看 SHA256SUMS
+            <img
+              src="/assets/icons/external-link.svg"
+              alt=""
+              width="15"
+              height="15"
+          /></a>
+        </p>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <div class="wrap footer-main">
+        <a class="brand" href="/">驰拓AI助手</a>
+        <p>无锡市驰拓信息科技有限公司</p>
+        <a href="mailto:wodekefu@gmail.com"
+          >联系咨询
+          <img
+            src="/assets/icons/arrow-up-right.svg"
+            alt=""
+            width="16"
+            height="16"
+        /></a>
+      </div>
+      <div class="wrap footer-bottom">
+        <span>© 2026 无锡市驰拓信息科技有限公司</span
+        ><a href="/industry-resources/">18 域行业资源</a
+        ><a href="/insights/ai-data-boundaries/">数据边界研究</a
+        ><a
+          href="https://beian.miit.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >苏ICP备2022031387号-1</a
+        >
+      </div>
+    </footer>
+  </body>
+</html>
