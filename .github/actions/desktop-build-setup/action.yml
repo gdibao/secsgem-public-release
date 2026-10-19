@@ -134,5 +134,6 @@ runs:
           cd ..
           npm run install-isolated --prefix=./lobehub/apps/desktop -- --frozen-lockfile
         else
-          npm run install-isolated --prefix=./apps/desktop -- --frozen-lockfile
+          # public-mirror: allow PMD section refresh (npmmirror registry drift on GH runners)
+          npm run install-isolated --prefix=./apps/desktop -- --no-frozen-lockfile
         fi
