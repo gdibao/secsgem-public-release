@@ -354,8 +354,13 @@ jobs:
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$TAG" release-assets/*               --repo "$GITHUB_REPOSITORY"               --title "驰拓 AI 助手 ${VERSION}"               --notes-file release-notes.md               --prerelease               --verify-tag
-          fi \
+            gh release create "$TAG" release-assets/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "驰拓 AI 助手 ${VERSION}" \
+              --notes-file release-notes.md \
+              --prerelease \
+              --verify-tag
+          fi
             --title "驰拓 AI 助手 ${VERSION}" \
             --notes-file release-notes.md \
             --prerelease \
