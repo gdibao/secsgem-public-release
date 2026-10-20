@@ -86,8 +86,8 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; refusing to overwrite it." >&2
-            exit 1
+            echo "Release $TAG already exists; batch2 staggered upload mode (assets will be appended)." >&2
+            echo "Proceeding in batch2 upload mode." >&2
           fi
 
   build-desktop:
@@ -351,8 +351,11 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          gh release create "$TAG" release-assets/* \
-            --repo "$GITHUB_REPOSITORY" \
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" release-assets/*               --repo "$GITHUB_REPOSITORY"               --title "驰拓 AI 助手 ${VERSION}"               --notes-file release-notes.md               --prerelease               --verify-tag
+          fi \
             --title "驰拓 AI 助手 ${VERSION}" \
             --notes-file release-notes.md \
             --prerelease \
