@@ -302,7 +302,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -ge 10
+          # STAGGERED-BUILD: batch1 (Win+Linux+CLI only; mac deferred) so lower floor
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -ge 6
           if find release-assets -maxdepth 1 -type f -printf '%f\n' | grep -Eiq 'lobehub|comhub|qingyou'; then
             echo 'An artifact still carries an upstream product name.' >&2
             exit 1
