@@ -356,4 +356,8 @@ jobs:
           else
             gh release create "$TAG" release-assets/* \
               --repo "$GITHUB_REPOSITORY" \
+              --title "驰拓 AI 助手 ${VERSION}" \
+              --notes-file release-notes.md \
+              --prerelease \
+              --verify-tag
           fi
